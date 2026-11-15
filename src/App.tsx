@@ -1,3 +1,6 @@
+import { Portal, usePortalContext } from "./training/Portal";
+import { PendingPortal } from "./training/PendingPortal";
+import { useSharedSession } from "./lib/shared-session";
 import { campaignHeadcountBudget } from "./lib/campaign-budget";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -29,6 +32,7 @@ type Employee = {
     email: string;
     role: "employee" | "admin";
     active: boolean;
+    inactive_reason?: string | null;
     work_location_id: string;
 };
 type Campaign = {
@@ -251,7 +255,9 @@ export default function App() {
     const [employee, setEmployee] = useState<Employee | null>(null);
     const [loading, setLoading] = useState(true);
     const [denied, setDenied] = useState(false);
-    const [route, setRoute] = useState(() => location.hash || "#/");
+    const [route, setRoute] = useState(() => location.hash || "#/portal");
+    const portalState = usePortalContext(session?.user.id);
+    useSharedSession(session?.user.id);
     useEffect(() => {
         if (!isSupabaseConfigured) {
             setLoading(false);
@@ -262,13 +268,10 @@ export default function App() {
         return () => data.subscription.unsubscribe();
     }, []);
     useEffect(() => {
-        const handleRouteChange = () => setRoute(location.hash || "#/");
+        const handleRouteChange = () => setRoute(location.hash || "#/portal");
         window.addEventListener("hashchange", handleRouteChange);
         return () => window.removeEventListener("hashchange", handleRouteChange);
     }, []);
-    useEffect(() => { if (!session || getSessionMode() !== "shared")
-        return; let timer = 0; let lastReset = 0; const signOutForIdle = () => void supabase.auth.signOut({ scope: "local" }); const reset = () => { const now = Date.now(); if (now - lastReset < 15000)
-        return; lastReset = now; window.clearTimeout(timer); timer = window.setTimeout(signOutForIdle, 30 * 60 * 1000); }; const events = ["pointerdown", "keydown", "touchstart", "scroll"] as const; events.forEach(event => window.addEventListener(event, reset, { passive: true })); reset(); return () => { window.clearTimeout(timer); events.forEach(event => window.removeEventListener(event, reset)); }; }, [session?.user.id]);
     useEffect(() => {
         let cancelled = false;
         if (!session) {
@@ -300,7 +303,7 @@ export default function App() {
             if (cancelled)
                 return;
             setEmployee(data as Employee | null);
-            setDenied(!data || Boolean(error));
+            setDenied(!data || !data.active || Boolean(error));
             setLoading(false);
         })();
         return () => { cancelled = true; };
@@ -336,10 +339,20 @@ export default function App() {
         return <Login />;
     if (denied || !employee)
         return <Unauthorized email={session.user.email ?? ""}/>;
+    if (portalState.backendMissing) {
+        if (route === "#/" || route.startsWith("#/history") || route.startsWith("#/feedback")) return <EmployeeApp employee={employee} route={route}/>;
+        if (route.startsWith("#/admin")) return employee.role === "admin" ? <><a className="portal-switch" href="#/portal" style={{display:"block",padding:12}}>← 返回員工入口</a><AdminApp employee={employee} legacyBackend/></> : <Unauthorized email={employee.email} adminOnly/>;
+        return <PendingPortal name={employee.name}/>;
+    }
+    if (portalState.error) return <main className="system-card"><p role="alert">{portalState.error}</p><button onClick={() => void supabase.auth.signOut({scope:"local"})}>登出</button></main>;
+    if (!portalState.context) return <main className="loading-screen">正在確認系統資格…</main>;
+    if (route.startsWith("#/portal") || route.startsWith("#/training") || route.startsWith("#/customer-service")) return <Portal route={route} context={portalState.context}/>;
+    if (!portalState.context.systems.some(s => s.code === "snack-vote")) return <main className="system-card"><p>尚未取得零食投票使用資格。</p><a href="#/portal">返回員工入口</a></main>;
+    const snackEmployee:Employee = portalState.context.grants.some(g => g.system_code === "snack-vote" && g.role === "admin") ? {...employee,role:"admin"} : employee;
     const adminRoute = route.startsWith("#/admin");
-    if (adminRoute && employee.role !== "admin")
+    if (adminRoute && snackEmployee.role !== "admin")
         return <Unauthorized email={employee.email} adminOnly/>;
-    return adminRoute ? <AdminApp employee={employee}/> : <EmployeeApp employee={employee} route={route}/>;
+    return adminRoute ? <><a className="portal-switch" href="#/portal" style={{display:"block",padding:12}}>← 返回員工入口</a><AdminApp employee={snackEmployee}/></> : <EmployeeApp employee={snackEmployee} route={route}/>;
 }
 function SetupScreen() { return <main className="system-card"><p className="section-kicker">連線設定</p><h1>網站程式已準備連接 Supabase</h1><p>請建立 <code>.env.local</code>，填入 Project URL 與 Publishable Key，再重新啟動網站。</p><code>VITE_SUPABASE_URL=...<br />VITE_SUPABASE_PUBLISHABLE_KEY=...</code></main>; }
 function Login() {
@@ -407,11 +420,11 @@ function Login() {
         if (error)
             return showError("驗證碼錯誤或已失效，請重新確認或再寄一次。");
     }
-    const deviceControl = <button type="button" className={`shared-device ${shared ? "selected" : ""}`} role="switch" aria-checked={shared} onClick={() => setShared(x => !x)}><span>共用電腦</span><strong>{shared ? "已開啟" : "未開啟"}</strong><small>{shared ? "關閉分頁即清除登入；閒置 30 分鐘也會自動登出。" : "個人電腦會安全保留登入，之後可直接開啟使用。"}</small></button>;
+    const deviceControl = <button type="button" className={`shared-device ${shared ? "selected" : ""}`} role="switch" aria-checked={shared} onClick={() => setShared(x => !x)}><span>共用電腦</span><strong>{shared ? "已開啟" : "未開啟"}</strong><small>{shared ? "關閉全部分頁後清除登入；閒置 30 分鐘也會自動登出。" : "個人電腦會安全保留登入，之後可直接開啟使用。"}</small></button>;
     return <main className="auth-shell">
     <section className="auth-brand-panel">
-      <div className="brand"><span className="brand-mark">S</span><div><strong>Snack Vote</strong><small>公司零食共選</small></div></div>
-      <div className="auth-copy"><p className="section-kicker">MONTHLY SNACK CLUB</p><h1>把想吃的，<br />變成下個月的零食。</h1><p>同仁提名、公開具名投票，再依預算產生採購建議。規則透明，選擇也更有參與感。</p></div>
+      <div className="brand"><span className="brand-mark">S</span><div><strong>員工共用入口</strong><small>教育訓練與零食投票</small></div></div>
+      <div className="auth-copy"><p className="section-kicker">EMPLOYEE PORTAL</p><h1>一次登入，<br />接續每天的工作。</h1><p>完成教育訓練、參與零食投票。使用同一個員工身分，切換系統不需再次驗證。</p></div>
       <div className="auth-flow"><span>01 提名</span><span>02 投票</span><span>03 結果揭曉</span><span>04 安排採購</span></div>
     </section>
     <section className="auth-panel">
@@ -750,7 +763,7 @@ function ShellHeader({ employee, children, currentPage = "campaign" }: {
     employee: Employee;
     children: React.ReactNode;
     currentPage?: "campaign" | "history" | "feedback";
-}) { const shared = getSessionMode() === "shared"; return <main className="employee-shell"><header className="topbar"><div className="brand"><span className="brand-mark">S</span><div><strong>Snack Vote</strong><small>公司零食共選</small></div></div><nav className="employee-page-nav" aria-label="主要功能"><a href="#/" className={currentPage === "campaign" ? "active" : ""}>本期活動</a><a href="#/history" className={currentPage === "history" ? "active" : ""}>近三期回顧</a><a href="#/feedback" className={currentPage === "feedback" ? "active" : ""}>意見問卷</a></nav><div className="top-actions"><TextSizeControl /><span className={`session-mode ${getSessionMode()}`}>{shared ? "共用電腦模式" : "此瀏覽器已登入"}</span>{employee.role === "admin" && <a className="portal-switch" href="#/admin">管理後台</a>}<button onClick={() => supabase.auth.signOut({ scope: "local" })}>登出</button><div className="profile"><span className="avatar">{employee.name.slice(0, 1)}</span><div><strong>{employee.name}</strong><small>{employee.email}{shared ? " · 閒置 30 分鐘自動登出" : ""}</small></div></div></div></header>{children}<footer>商品與價格僅供採購參考，實際售價及庫存以門市為準。</footer></main>; }
+}) { const shared = getSessionMode() === "shared"; return <main className="employee-shell"><header className="topbar"><div className="brand"><span className="brand-mark">S</span><div><strong>Snack Vote</strong><small>公司零食共選</small></div></div><nav className="employee-page-nav" aria-label="主要功能"><a href="#/portal">返回員工入口</a><a href="#/" className={currentPage === "campaign" ? "active" : ""}>本期活動</a><a href="#/history" className={currentPage === "history" ? "active" : ""}>近三期回顧</a><a href="#/feedback" className={currentPage === "feedback" ? "active" : ""}>意見問卷</a></nav><div className="top-actions"><TextSizeControl /><span className={`session-mode ${getSessionMode()}`}>{shared ? "共用電腦模式" : "此瀏覽器已登入"}</span>{employee.role === "admin" && <a className="portal-switch" href="#/admin">管理後台</a>}<button onClick={() => supabase.auth.signOut({ scope: "local" })}>登出</button><div className="profile"><span className="avatar">{employee.name.slice(0, 1)}</span><div><strong>{employee.name}</strong><small>{employee.email}{shared ? " · 閒置 30 分鐘自動登出" : ""}</small></div></div></div></header>{children}<footer>商品與價格僅供採購參考，實際售價及庫存以門市為準。</footer></main>; }
 function Timeline({ campaign, phase }: {
     campaign: Campaign;
     phase: Phase;
@@ -790,8 +803,9 @@ const adminTabs: {
     icon: string;
     label: string;
 }[] = [{ id: "overview", icon: "⌂", label: "管理總覽" }, { id: "campaign", icon: "◫", label: "活動管理" }, { id: "employees", icon: "◎", label: "員工名單" }, { id: "locations", icon: "⌖", label: "上班地點" }, { id: "products", icon: "▦", label: "商品資料庫" }, { id: "pending", icon: "◇", label: "待審商品" }, { id: "purchase", icon: "✓", label: "採購清單" }, { id: "budget", icon: "◒", label: "預算分析" }, { id: "feedback", icon: "✦", label: "意見回饋" }, { id: "history", icon: "↺", label: "歷史紀錄" }];
-function AdminApp({ employee }: {
+function AdminApp({ employee, legacyBackend = false }: {
     employee: Employee;
+    legacyBackend?: boolean;
 }) {
     const { ask: askConfirm, element: confirmElement } = useConfirmDialog();
     const [tab, setTab] = useState<AdminTab>("overview");
@@ -851,7 +865,7 @@ function AdminApp({ employee }: {
         return flash("請至少選擇一個上班地點"); setBusy(true); const created = await supabase.from("employees").insert({ name: name.trim(), email: email.trim().toLowerCase(), role: "employee", work_location_id: employeeLocationIds[0] }).select("id").single(); if (created.error) {
         setBusy(false);
         return flash(created.error.message);
-    } const assigned = await supabase.rpc("set_employee_locations", { p_employee_id: created.data.id, p_location_ids: employeeLocationIds }); setBusy(false); if (assigned.error)
+    } const eligibility = legacyBackend ? {error:null} : await supabase.rpc("snack_enable_employee", {p_employee_id:created.data.id}); if(eligibility.error){setBusy(false);return flash(eligibility.error.message);} const assigned = await supabase.rpc("set_employee_locations", { p_employee_id: created.data.id, p_location_ids: employeeLocationIds }); setBusy(false); if (assigned.error)
         return flash(assigned.error.message); setName(""); setEmail(""); setEmployeeLocationIds([]); flash("員工已新增，可請對方使用 Email 驗證碼登入"); await load(); }
     async function sendLoginEmail(row: Employee) { if (!row.active)
         return flash("請先重新啟用這位員工，再寄送驗證碼"); setEmailingEmployeeId(row.id); const { error } = await supabase.auth.signInWithOtp({ email: row.email, options: { shouldCreateUser: true, emailRedirectTo: appEntryUrl() } }); setEmailingEmployeeId(null); if (error)
@@ -862,7 +876,7 @@ function AdminApp({ employee }: {
         return; setBusy(true); const { error } = await supabase.functions.invoke("revoke-user-session", { body: { employeeId: row.id } }); setBusy(false); if (error)
         return flash(`撤銷失敗：${error.message}`); flash(`${row.name} 的登入工作階段已全部撤銷`); }
     async function updateEmployee(row: Employee, patch: Partial<Employee>) { if (row.id === employee.id && patch.active === false)
-        return flash("不能停用目前登入的管理者"); const { error } = await supabase.from("employees").update(patch).eq("id", row.id); if (error)
+        return flash("不能停用目前登入的管理者"); if(patch.active === false && !legacyBackend){const reason=prompt("停用原因（會停止共用入口與其他系統存取）");if(!reason?.trim())return;patch.inactive_reason=reason;} const { error } = await supabase.from("employees").update(patch).eq("id", row.id); if (error)
         flash(error.message);
     else
         await load(); }
@@ -1601,7 +1615,3 @@ function HistoryPanel({ campaigns, locations, products, nominations, votes, comm
     onEdit: (campaign: Campaign) => void;
     onDelete: (campaign: Campaign) => void;
 }) { const [expanded, setExpanded] = useState<string | null>(null); return <section className="admin-card"><div className="card-title"><div><p className="section-kicker">CAMPAIGN HISTORY</p><h2>所有活動完整紀錄</h2></div><span className="count-tag">{campaigns.length} 期</span></div>{campaigns.length ? <div className="history-detail-list">{campaigns.map(c => { const cv = votes.filter(v => v.campaign_id === c.id); const cn = nominations.filter(n => n.campaign_id === c.id); const cc = comments.filter(x => x.campaign_id === c.id); const cp = purchases.filter(x => x.campaign_id === c.id); const productIds = [...new Set([...cn.map(n => n.product_id), ...cv.map(v => v.product_id), ...cp.map(p => p.product_id)])]; const ranking = productIds.map(id => ({ id, count: cv.filter(v => v.product_id === id).length })).sort((a, b) => b.count - a.count || a.id.localeCompare(b.id)); const historyRankMap = competitionRankMap(ranking, r => r.id, r => r.count); const discount = Number(c.purchase_discount_total ?? 0); const spent = purchaseTotals(cp.reduce((sum, x) => sum + Number(x.unit_price) * Number(x.final_quantity ?? x.suggested_quantity), 0), discount).net; const open = expanded === c.id; return <article className={`history-detail ${open ? "open" : ""}`} key={c.id}><button className="history-summary" onClick={() => setExpanded(open ? null : c.id)}><span><em>{c.status === "archived" ? "已封存" : phaseLabel(phaseOf(c))}</em><strong>{c.label}</strong><small>{locations.find(x => x.id === c.work_location_id)?.name ?? "未設定地點"} · {shortDate(c.start_at)}－{shortDate(c.purchase_at)}</small></span><span><b>預算 NT$ {Number(c.budget).toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</b><small>{cv.length} 票 · {cn.length} 筆提名 · {cc.length} 則留言</small></span><i>{open ? "收合" : "查看完整紀錄"}</i></button>{open && <div className="history-body"><div className="history-maintain"><div><button onClick={() => onEdit(c)}>維護此活動設定</button><button className="history-delete" onClick={() => onDelete(c)}>強制刪除活動</button></div><span>修改預算、日期、地點或狀態；既有投票與採購紀錄會保留。</span></div><div className="history-metrics"><span>預算<strong>NT$ {Number(c.budget).toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</strong></span><span>折扣總額<strong>NT$ {discount.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</strong></span><span>採購清單金額（折扣後）<strong>NT$ {spent.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</strong></span><span>已完成採購<strong>{cp.filter(x => x.purchased).length} 項</strong></span></div><div className="table-wrap"><table><thead><tr><th>排名</th><th>商品</th><th>提名者</th><th>票數與投票者</th><th>留言</th><th>採購結果</th></tr></thead><tbody>{ranking.map(r => { const product = products.find(p => p.id === r.id); const ns = cn.filter(n => n.product_id === r.id); const vs = cv.filter(v => v.product_id === r.id); const cs = cc.filter(x => x.product_id === r.id); const buy = cp.find(x => x.product_id === r.id); return <tr key={r.id}><td><strong>#{historyRankMap.get(r.id)}</strong></td><td>{product ? `${product.brand} ${product.name}` : "商品資料已停用"}</td><td>{ns.map(n => n.nominator_name).join("、") || "—"}</td><td><strong>{vs.length} 票</strong><small className="cell-sub">{vs.map(v => v.voter_name).join("、") || "—"}</small></td><td>{cs.length ? <details><summary>{cs.length} 則</summary>{cs.map(x => <p className="history-comment" key={x.id}><b>{x.author_name}</b>{x.body}</p>)}</details> : "—"}</td><td>{buy ? `${buy.final_quantity ?? buy.suggested_quantity} 份 · NT$ ${(Number(buy.unit_price) * Number(buy.final_quantity ?? buy.suggested_quantity)).toLocaleString("zh-TW", { maximumFractionDigits: 0 })}${buy.purchased ? " · 已買" : ""}` : "未列入"}</td></tr>; })}</tbody></table></div></div>}</article>; })}</div> : <div className="admin-empty">尚無活動紀錄。</div>}</section>; }
-
-
-
-

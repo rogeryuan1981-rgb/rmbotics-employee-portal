@@ -1,4 +1,14 @@
-# vinext-starter
+# 員工共用入口與教育訓練平台
+
+本分支實際使用 Vite／React／Supabase，執行入口為 `src/main.tsx`。請依 [啟動與設定說明](README-PORTAL.md) 操作；本機無憑證啟動：`npm ci` → `npm run dev:local`。
+
+新增功能、五份增量遷移、郵件攔截、測試命令及所需環境變數均記載於該說明。原有零食資料保留；正式部署與正式資料遷移尚未執行。
+
+以下為原儲存庫保留的範本說明，**不適用本分支目前的執行入口與建置方式**。
+
+---
+
+# 原始 vinext-starter 範本
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

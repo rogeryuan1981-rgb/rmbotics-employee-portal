@@ -9,20 +9,35 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vite build"
+    "test": "node --test tests/training.test.mjs",
+    "dev:local": "node scripts/local-server.mjs",
+    "test:e2e": "playwright test",
+    "test:db": "node scripts/check-db.mjs",
+    "test:migrations": "node scripts/verify-migrations.mjs",
+    "worker": "node scripts/mail-worker.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.3",
+    "@supabase/supabase-js": "2.112.3",
+    "exceljs": "4.4.0",
+    "pdfjs-dist": "^5.4.449",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@playwright/test": "^1.65.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3",
-    "vite": "8.0.13"
+    "vite": "8.3.8"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  }
 }
