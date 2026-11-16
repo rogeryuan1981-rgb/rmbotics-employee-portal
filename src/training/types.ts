@@ -3,6 +3,9 @@ export type Material = {
   title: string;
   kind: "text" | "pdf" | "youtube";
   content: string;
+  active?: boolean;
+  revision?: number;
+  updated_at?: string;
 };
 export type Question = {
   id: string;
@@ -27,9 +30,12 @@ export type CourseContent = {
   materials: Material[];
   questions: Question[];
 };
+export type CourseDraft = Omit<CourseContent, "materials"> & {
+  material_ids: string[];
+};
 export type Course = {
   id: string;
-  draft: CourseContent;
+  draft: CourseDraft;
   published: CourseContent | null;
   active: boolean;
   version: number;
@@ -144,6 +150,7 @@ export type AdminData = {
   employees: Person[];
   jobs: Job[];
   courses: Course[];
+  materials: Material[];
   requirements: Requirement[];
   issues: { id: string; message: string; resolution: string | null }[];
   settings: Settings | null;

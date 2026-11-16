@@ -526,8 +526,33 @@
 .training-app .primary:hover{background:#293b9d}.badge{background:#eef0ff;color:#4658b7}.course-card progress{accent-color:#4b63e8}
 .learning-stats>span{background:#eef1ff;border:1px solid #dfe4ff}.training-app .selected{background:#edf0ff;border-color:#6c7fe4;color:#2e419e}
 .training-app th{background:#edf0f8}.subpanel{background:#f7f8fb}.check input,.answer-option input{accent-color:#4b63e8}
+.workflow-intro{
+  margin:24px 0;padding:24px 28px;border:1px solid #dce2f2;border-left:5px solid var(--hub);
+  border-radius:13px;background:linear-gradient(110deg,#fff,#f3f5ff);
+}
+.workflow-intro>span{color:#596ccf;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+.workflow-intro h2{margin:7px 0 6px}.workflow-intro p{margin:0;max-width:760px}
+.material-library-grid{margin-top:18px}.focused-editor{margin-top:24px;border-top:4px solid var(--hub)}
+.course-workflow{margin-top:24px;padding:0;overflow:hidden}
+.editor-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:26px 28px 18px}
+.editor-heading h2{margin:5px 0 0}.course-steps{display:flex;gap:0;overflow-x:auto;border-block:1px solid var(--line);background:#f8f9fc}
+.course-steps button{flex:1;min-width:135px;padding:14px 10px;border:0;border-right:1px solid var(--line);border-radius:0;background:transparent;color:#69738a}
+.course-steps button.selected{background:#fff;color:#3146aa;box-shadow:inset 0 -3px #4b63e8}
+.course-workflow>.form-grid,.course-workflow>fieldset,.course-workflow>label,.course-workflow>.button-row,.course-workflow>p,.course-workflow>.material-picker,.course-workflow>.publish-checklist,.course-workflow>button{margin-left:28px;margin-right:28px}
+.course-workflow>.button-row:last-of-type{margin-bottom:28px}
+.section-explainer{display:flex;align-items:baseline;gap:14px;padding:22px 28px 18px}
+.section-explainer strong{font-size:18px}.section-explainer span{color:var(--muted);font-size:13px}
+.material-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.material-picker label{display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+.material-picker label.selected{border-color:#7082e2;background:#f1f3ff}.material-picker input{margin-top:4px;accent-color:#4b63e8}
+.material-picker span{display:flex;flex-direction:column;gap:4px}.material-picker small{color:var(--muted)}
+.publish-checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:22px}
+.publish-checklist p{display:flex;align-items:center;gap:10px;margin:0;padding:14px;border-radius:9px;border:1px solid var(--line);background:#fff}
+.publish-checklist .ready{color:#267858;border-color:#bcdccb;background:#f0faf5}.publish-checklist .pending{color:#9a6219;border-color:#ead2aa;background:#fff8ea}
 @media(max-width:760px){
   .portal-header{padding:14px 16px}.portal-header nav span{margin-left:0;padding-left:0;border:0}
   .portal-welcome{align-items:flex-start;flex-direction:column;padding-bottom:30px}.portal-welcome h1{font-size:2.4rem}
   .system-grid{grid-template-columns:1fr}.system-tile,.system-tile:first-child{min-height:270px;padding:22px}.tile-top{margin-bottom:28px}
+  .section-explainer{align-items:flex-start;flex-direction:column;gap:5px}.editor-heading{padding-inline:20px}
+  .course-workflow>.form-grid,.course-workflow>fieldset,.course-workflow>label,.course-workflow>.button-row,.course-workflow>p,.course-workflow>.material-picker,.course-workflow>.publish-checklist,.course-workflow>button{margin-left:20px;margin-right:20px}
 }

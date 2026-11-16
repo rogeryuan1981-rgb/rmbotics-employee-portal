@@ -1,14 +1,15 @@
 import { useState } from "react";
 import type {
   Course,
-  CourseContent,
+  CourseDraft,
   Deadline,
   Job,
   JobContent,
   Link,
   Question,
+  Material,
 } from "./types";
-import { api, youtubeId } from "./api";
+import { api, materialApi, youtubeId } from "./api";
 export const defaultDeadline: Deadline = {
   mode: "assigned",
   days: 30,
@@ -157,49 +158,51 @@ export function LinkEditor({
     </div>
   );
 }
-export function CourseEditor({
-  course,
-  departments,
-  done,
-}: {
-  course: Course | null;
-  departments: { id: string; name: string }[];
-  done: () => void;
-}) {
-  const [value, setValue] = useState<CourseContent>(
-    course?.draft || {
-      title: "",
-      seconds: 3600,
-      pass_score: 80,
-      question_count: 1,
-      minutes: 0,
-      cycle: "once",
-      departments: [],
-      start: "",
-      end: "",
-      materials: [],
-      questions: [],
-    },
-  );
+export function MaterialLibrary({materials,done}:{materials:Material[];done:()=>void}) {
+  const [editing,setEditing]=useState<Material|null>(null);
+  const [draft,setDraft]=useState<Material>({id:"",title:"",kind:"text",content:"",active:true});
+  const [message,setMessage]=useState("");
+  const edit=(m?:Material)=>{const next=m||{id:"",title:"",kind:"text" as const,content:"",active:true};setEditing(next);setDraft({...next});setMessage("");};
+  async function save(){
+    try{
+      const content=draft.kind==="youtube"?youtubeId(draft.content):draft.content;
+      await materialApi("save",{id:draft.id,title:draft.title,kind:draft.kind,content,summary:draft.id?"更新教材":"建立教材"});
+      setMessage("教材已儲存，可供多個課程引用。");setEditing(null);await done();
+    }catch(e){setMessage((e as Error).message);}
+  }
+  return <>
+    <section className="workflow-intro"><span>獨立資產</span><h2>教材庫</h2><p>教材可先建立、單獨維護並重複用於多個課程；停用教材不會改寫已發布課程的歷史快照。</p></section>
+    <div className="button-row"><button className="primary" onClick={()=>edit()}>新增教材</button></div>
+    <div className="course-grid material-library-grid">{materials.map(m=><article className="course-card" key={m.id}>
+      <span className="badge">{m.active===false?"已停用":m.kind==="text"?"網頁文字":m.kind==="pdf"?"PDF":"YouTube"}</span>
+      <h2>{m.title}</h2><p>版本 {m.revision||1} · 可獨立使用</p>
+      <div className="button-row"><button onClick={()=>edit(m)}>編輯教材</button><button onClick={async()=>{await materialApi("set_active",{id:m.id,active:m.active===false});await done();}}>{m.active===false?"重新啟用":"停用"}</button></div>
+    </article>)}</div>
+    {editing&&<section className="panel focused-editor"><p className="eyebrow">MATERIAL ASSET</p><h2>{draft.id?"編輯教材":"新增教材"}</h2>
+      <div className="form-grid"><label>教材名稱<input value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label><label>教材類型<select value={draft.kind} onChange={e=>setDraft({...draft,kind:e.target.value as Material["kind"],content:""})}><option value="text">網頁文字</option><option value="pdf">PDF</option><option value="youtube">YouTube</option></select></label></div>
+      <label>{draft.kind==="text"?"教材內容":draft.kind==="pdf"?"PDF HTTPS 網址":"YouTube 網址或 11 碼識別碼"}<textarea rows={draft.kind==="text"?10:3} value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>
+      <div className="button-row"><button onClick={()=>setEditing(null)}>取消</button><button className="primary" disabled={!draft.title.trim()||!draft.content.trim()} onClick={()=>void save()}>儲存教材</button></div>{message&&<p role="status">{message}</p>}
+    </section>}
+  </>;
+}
+
+type CourseSection="basic"|"materials"|"questions"|"schedule"|"publish";
+export function CourseEditor({course,materials,departments,done}:{course:Course|null;materials:Material[];departments:{id:string;name:string}[];done:()=>void}) {
+  const [section,setSection]=useState<CourseSection>("basic");
+  const [value, setValue] = useState<CourseDraft>(course?.draft || {
+      title:"",seconds:3600,pass_score:80,question_count:1,minutes:0,cycle:"once",departments:[],start:"",end:"",material_ids:[],questions:[],
+    });
   const [id, setId] = useState(course?.id);
   const [summary, setSummary] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const patch = (v: Partial<CourseContent>) =>
+  const patch = (v: Partial<CourseDraft>) =>
     setValue((c) => ({ ...c, ...v }));
   async function save(publish = false) {
     setBusy(true);
     setMessage("");
     try {
-      const c = await api<{ id: string }>("course_save", {
-        id,
-        content: {
-          ...value,
-          materials: value.materials.map((m) =>
-            m.kind === "youtube" ? { ...m, content: youtubeId(m.content) } : m,
-          ),
-        },
-      });
+      const c = await api<{ id: string }>("course_save", { id, content:value });
       setId(c.id);
       if (publish) await api("course_publish", { id: c.id, summary });
       setMessage(
@@ -218,10 +221,17 @@ export function CourseEditor({
         i === index ? { ...q, ...v } : q,
       ),
     });
-  return (
-    <section className="panel">
-      <h2>{course ? "編輯課程" : "新增課程"}</h2>
-      <div className="form-grid">
+  const activeMaterials=materials.filter(m=>m.active!==false);
+  const checks=[
+    [!!value.title.trim()&&value.seconds>0,"基本資料完整"],
+    [value.material_ids.length>0&&value.material_ids.every(x=>activeMaterials.some(m=>m.id===x)),"至少引用一份啟用教材"],
+    [value.questions.length>=value.question_count&&value.questions.every(q=>q.prompt.trim()&&q.options.length>=2&&q.correct?.length&&value.material_ids.includes(q.material_id)),"題庫與教材對照完整"],
+    [!value.start||!value.end||new Date(value.end)>new Date(value.start),"常規開課期間有效"],
+  ] as [boolean,string][];
+  return <section className="panel course-workflow">
+      <div className="editor-heading"><div><p className="eyebrow">COURSE WORKFLOW</p><h2>{course?value.title||"未命名課程":"建立新課程"}</h2></div><span className="badge">{course?.published?"已發布":"草稿"}</span></div>
+      <nav className="course-steps">{([['basic','1 基本設定'],['materials','2 引用教材'],['questions','3 題庫'],['schedule','4 常規開課'],['publish','5 發布檢查']] as [CourseSection,string][]).map(([id,label])=><button key={id} className={section===id?"selected":""} onClick={()=>setSection(id)}>{label}</button>)}</nav>
+      {section==="basic"&&<><div className="section-explainer"><strong>基本設定</strong><span>只定義課程本身，不包含教材內容或開課對象。</span></div><div className="form-grid">
         <label>
           課程名稱
           <input
@@ -270,40 +280,11 @@ export function CourseEditor({
         </label>
         <label>
           訓練週期
-          <select
-            value={value.cycle}
-            onChange={(e) =>
-              patch({ cycle: e.target.value as CourseContent["cycle"] })
-            }
-          >
-            <option value="once">一次性</option>
-            <option value="annual">每年必修</option>
-          </select>
+          <input value="草稿階段不開課" disabled />
         </label>
-        <label>
-          開課時間（空白立即）
-          <input
-            type="datetime-local"
-            value={value.start?.slice(0, 16) || ""}
-            onChange={(e) =>
-              patch({
-                start: e.target.value ? e.target.value + ":00+08:00" : "",
-              })
-            }
-          />
-        </label>
-        <label>
-          結束時間（空白永久）
-          <input
-            type="datetime-local"
-            value={value.end?.slice(0, 16) || ""}
-            onChange={(e) =>
-              patch({ end: e.target.value ? e.target.value + ":00+08:00" : "" })
-            }
-          />
-        </label>
-      </div>
-      <fieldset>
+      </div><div className="button-row"><button onClick={()=>void save()}>儲存基本設定</button><button className="primary" onClick={()=>setSection("materials")}>下一步：引用教材</button></div></>}
+      {section==="materials"&&<><div className="section-explainer"><strong>引用教材</strong><span>只選擇教材庫中的資產；要新增或修改教材，請到「教材庫」。</span></div><div className="material-picker">{activeMaterials.map(m=><label className={value.material_ids.includes(m.id)?"selected":""} key={m.id}><input type="checkbox" checked={value.material_ids.includes(m.id)} onChange={e=>patch({material_ids:e.target.checked?[...value.material_ids,m.id]:value.material_ids.filter(id=>id!==m.id)})}/><span><strong>{m.title}</strong><small>{m.kind==="text"?"網頁文字":m.kind==="pdf"?"PDF":"YouTube"} · 版本 {m.revision||1}</small></span></label>)}</div>{!activeMaterials.length&&<p className="warning">教材庫尚無啟用教材。請先到「教材庫」建立，課程草稿仍可先儲存。</p>}<div className="button-row"><button onClick={()=>void save()}>儲存教材引用</button><button className="primary" onClick={()=>setSection("questions")}>下一步：建立題庫</button></div></>}
+      {section==="schedule"&&<><div className="section-explainer"><strong>常規開課設定</strong><span>設定課程發布後的適用部門、週期與開放期間；不在這裡編輯教材。</span></div><div className="form-grid"><label>訓練週期<select value={value.cycle} onChange={e=>patch({cycle:e.target.value as CourseDraft["cycle"]})}><option value="once">一次性</option><option value="annual">每年必修</option></select></label><label>開課時間（空白立即）<input type="datetime-local" value={value.start?.slice(0,16)||""} onChange={e=>patch({start:e.target.value?e.target.value+":00+08:00":""})}/></label><label>結束時間（空白永久）<input type="datetime-local" value={value.end?.slice(0,16)||""} onChange={e=>patch({end:e.target.value?e.target.value+":00+08:00":""})}/></label></div><fieldset>
         <legend>適用部門（不勾選為全公司）</legend>
         {departments.map((d) => (
           <label className="check" key={d.id}>
@@ -321,88 +302,8 @@ export function CourseEditor({
             {d.name}
           </label>
         ))}
-      </fieldset>
-      <h3>課程教材</h3>
-      {value.materials.map((m, i) => (
-        <fieldset key={m.id}>
-          <legend>教材 {i + 1}</legend>
-          <label>
-            教材名稱
-            <input
-              value={m.title}
-              onChange={(e) =>
-                patch({
-                  materials: value.materials.map((v, n) =>
-                    n === i ? { ...v, title: e.target.value } : v,
-                  ),
-                })
-              }
-            />
-          </label>
-          <label>
-            類型
-            <select
-              value={m.kind}
-              onChange={(e) =>
-                patch({
-                  materials: value.materials.map((v, n) =>
-                    n === i
-                      ? { ...v, kind: e.target.value as typeof m.kind }
-                      : v,
-                  ),
-                })
-              }
-            >
-              <option value="text">網頁文字</option>
-              <option value="pdf">PDF</option>
-              <option value="youtube">YouTube</option>
-            </select>
-          </label>
-          <label>
-            {m.kind === "text"
-              ? "教材內容"
-              : m.kind === "pdf"
-                ? "PDF HTTPS 網址（須允許本站讀取）"
-                : "YouTube 影片網址或 11 碼識別碼"}
-            <textarea
-              rows={m.kind === "text" ? 6 : 2}
-              value={m.content}
-              onChange={(e) =>
-                patch({
-                  materials: value.materials.map((v, n) =>
-                    n === i ? { ...v, content: e.target.value } : v,
-                  ),
-                })
-              }
-            />
-          </label>
-          <button
-            onClick={() =>
-              patch({ materials: value.materials.filter((_, n) => n !== i) })
-            }
-          >
-            移除教材
-          </button>
-        </fieldset>
-      ))}
-      <button
-        onClick={() =>
-          patch({
-            materials: [
-              ...value.materials,
-              {
-                id: crypto.randomUUID(),
-                title: "新教材",
-                kind: "text",
-                content: "",
-              },
-            ],
-          })
-        }
-      >
-        新增教材
-      </button>
-      <h3>題庫</h3>
+      </fieldset><div className="button-row"><button onClick={()=>void save()}>儲存常規開課設定</button><button className="primary" onClick={()=>setSection("publish")}>下一步：發布檢查</button></div></>}
+      {section==="questions"&&<><div className="section-explainer"><strong>題庫</strong><span>題目可先存草稿；發布前再完成答案與教材對照，不會反過來阻擋教材建立。</span></div>
       <p>發布前會檢查可用題數、答案及教材對照。複選題必須全部選對才得分。</p>
       {value.questions.map((q, i) => (
         <fieldset key={q.id}>
@@ -481,7 +382,7 @@ export function CourseEditor({
               }
             >
               <option value="">請選擇</option>
-              {value.materials.map((m) => (
+              {activeMaterials.filter(m=>value.material_ids.includes(m.id)).map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.title}
                 </option>
@@ -525,15 +426,15 @@ export function CourseEditor({
                 options: ["", ""],
                 correct: [0],
                 explanation: "",
-                material_id: value.materials[0]?.id || "",
+                material_id: value.material_ids[0] || "",
               },
             ],
           })
         }
       >
         新增題目
-      </button>
-      <label>
+      </button><div className="button-row"><button onClick={()=>void save()}>儲存題庫草稿</button><button className="primary" onClick={()=>setSection("schedule")}>下一步：常規開課</button></div></>}
+      {section==="publish"&&<><div className="section-explainer"><strong>發布檢查</strong><span>前面各區都可獨立存草稿；只有發布才要求全部通過。</span></div><div className="publish-checklist">{checks.map(([ok,label])=><p className={ok?"ready":"pending"} key={label}><b>{ok?"✓":"!"}</b>{label}</p>)}</div><label>
         發布摘要
         <input value={summary} onChange={(e) => setSummary(e.target.value)} />
       </label>
@@ -543,15 +444,14 @@ export function CourseEditor({
         </button>
         <button
           className="primary"
-          disabled={busy || !summary.trim()}
+          disabled={busy || !summary.trim() || checks.some(([ok])=>!ok)}
           onClick={() => void save(true)}
         >
           發布／僅更新內容
         </button>
-      </div>
+      </div></>}
       <p role="status">{message}</p>
-    </section>
-  );
+    </section>;
 }
 export function JobEditor({
   job,

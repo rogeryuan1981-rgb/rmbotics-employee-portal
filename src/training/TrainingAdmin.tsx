@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, dateTime, deadlineLabel, duration } from "./api";
+import { api, materialApi, dateTime, deadlineLabel, duration } from "./api";
 import type {
   AdminData,
   Context,
@@ -13,6 +13,7 @@ import type {
 } from "./types";
 import {
   CourseEditor,
+  MaterialLibrary,
   JobEditor,
   DeadlineEditor,
   LinkEditor,
@@ -24,6 +25,7 @@ type Tab =
   | "people"
   | "jobs"
   | "courses"
+  | "materials"
   | "assign"
   | "reports"
   | "settings";
@@ -42,13 +44,17 @@ export function TrainingAdmin({ context }: { context: Context }) {
   const people =
     admin ||
     context.grants.some((g) => g.system_code === "training" && g.role === "hr");
-  const load = useCallback(
-    () =>
-      api<AdminData>("admin")
-        .then(setData)
-        .catch((e) => setError(e.message)),
-    [],
-  );
+  const load = useCallback(async () => {
+    try {
+      const [adminData, materials] = await Promise.all([
+        api<Omit<AdminData, "materials">>("admin"),
+        materialApi<AdminData["materials"]>("list"),
+      ]);
+      setData({ ...adminData, materials });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, []);
   useEffect(() => {
     void load();
   }, [load]);
@@ -88,8 +94,8 @@ export function TrainingAdmin({ context }: { context: Context }) {
             ["overview", "管理總覽"],
             ...(people ? [["people", "員工名冊"]] : []),
             ["jobs", "職務與職責"],
-            ...(admin ? [["courses", "課程與題庫"]] : []),
-            ["assign", "指派與期限"],
+            ...(admin ? [["materials", "教材庫"], ["courses", "課程與題庫"]] : []),
+            ["assign", "開課與指派"],
             ["reports", "報表"],
             ...(admin ? [["settings", "權限與設定"]] : []),
           ] as [Tab, string][]
@@ -195,6 +201,9 @@ export function TrainingAdmin({ context }: { context: Context }) {
           <RosterImport onDone={load} />
         </>
       )}
+      {tab === "materials" && admin && (
+        <MaterialLibrary materials={data.materials} done={load} />
+      )}
       {tab === "courses" && (
         <>
           <div className="button-row">
@@ -268,11 +277,11 @@ export function TrainingAdmin({ context }: { context: Context }) {
             <CourseEditor
               key={editing.item?.id || "new-course"}
               course={editing.item}
+              materials={data.materials}
               departments={data.departments}
               done={() => void load()}
             />
           )}
-          <Retrain data={data} onSave={(p) => act("retrain", p)} />
         </>
       )}
       {tab === "jobs" && (
@@ -346,7 +355,13 @@ export function TrainingAdmin({ context }: { context: Context }) {
       )}
       {tab === "assign" && (
         <>
+          <section className="workflow-intro">
+            <span>已發布課程</span>
+            <h2>開課與指派</h2>
+            <p>此區只處理人員指派、期限與重新受訓。教材請在「教材庫」獨立維護，課程內容請在「課程與題庫」設定。</p>
+          </section>
           <Assignment data={data} onSave={(p) => act("assign", p)} />
+          <Retrain data={data} onSave={(p) => act("retrain", p)} />
           <section className="panel">
             <h2>個別期限與訓練紀錄</h2>
             <div className="table-scroll">
