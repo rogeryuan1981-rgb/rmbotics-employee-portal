@@ -534,6 +534,22 @@
 }
 .portal-header nav a:hover,.portal-header nav button:hover{border-color:#354363;background:#1b2748;color:#fff}
 .portal-header nav span{margin-left:8px;padding-left:16px;border-left:1px solid #34415f;color:#fff;font-weight:700}
+.portal-header nav .platform-context-chip{margin:0 6px 0 0;padding:5px 10px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(255,255,255,.08);font-size:11px;letter-spacing:.08em}
+.hub-surface{--ink:#27313a;--muted:#766f66;--line:#ded8ce;--hub:#9a6a32;--hub-dark:#68441f;--hub-pale:#f7ead8;background:#f5f2ec}
+.hub-surface .portal-header{background:#faf7f1;color:#27313a;border-bottom:1px solid #ded8ce;box-shadow:0 5px 20px rgba(65,49,31,.05)}
+.hub-surface .portal-brand{color:#27313a!important}.hub-surface .portal-brand>span{background:linear-gradient(145deg,#c18b4e,#815522);box-shadow:0 8px 20px rgba(104,68,31,.18);font-family:"Segoe UI Variable",sans-serif}
+.hub-surface .portal-brand small{color:#8a7b69}.hub-surface .portal-header nav a,.hub-surface .portal-header nav button{color:#665b4f}
+.hub-surface .portal-header nav a:hover,.hub-surface .portal-header nav button:hover{border-color:#d6c5ae;background:#f1e8dc;color:#593b1c}
+.hub-surface .portal-header nav>span{border-left-color:#ddd1c1;color:#3b342d}.hub-surface .portal-header nav .platform-context-chip{border-color:#d8c4a9;background:#f4e6d3;color:#815522}
+.hub-surface .eyebrow{color:#9a6a32!important}.hub-surface .training-app a,.hub-surface a{color:#865b28}
+.hub-surface .primary-link,.hub-surface .primary{background:linear-gradient(135deg,#ad7840,#74491f)}
+.hub-surface .learning-stats>span{border-color:#e6d7c4;background:#fbf0e1}.hub-surface .selected{border-color:#b78752;background:#f8ecdc;color:#68441f}
+.hub-surface .platform-sequence{border-color:#e4d6c4;background:#fffdf9}.hub-surface .platform-sequence b{background:#9a6a32}
+.training-surface{--hub:#4b63e8;--hub-dark:#25368f;--hub-pale:#eef1ff;background:#f1f4fb}
+.training-surface .portal-header{background:linear-gradient(110deg,#141d43,#273a93)}
+.training-surface .portal-brand>span{background:linear-gradient(145deg,#91a0ff,#4b63e8);font-family:"Segoe UI Variable",sans-serif;font-weight:800}
+.training-surface .training-main>h1{color:#18275f}.training-surface .training-main>.eyebrow{color:#5369d5!important}
+.platform-boundary-link{display:inline-flex;margin:18px 0 6px;padding:11px 15px;border:1px solid #cfd7f3;border-radius:10px;background:#f8f9ff;text-decoration:none;font-weight:700}
 .portal-home,.training-main{max-width:1280px;padding:52px 28px 90px}
 .portal-welcome{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;padding:10px 0 44px;border-bottom:1px solid var(--line)}
 .portal-welcome>div{max-width:800px}.portal-welcome .eyebrow{color:#6575d7!important;letter-spacing:.2em}

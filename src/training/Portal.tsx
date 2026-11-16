@@ -12,25 +12,47 @@ export function Portal({
   route: string;
   context: Context;
 }) {
+  const trainingSurface = route.startsWith("#/training");
   const peopleAdmin = context.grants.some(
     (g) =>
       g.system_code === "training" && (g.role === "admin" || g.role === "hr"),
   );
+  const trainingManager = context.grants.some(
+    (g) => g.system_code === "training",
+  );
   return (
-    <div className="training-app">
+    <div
+      className={`training-app ${trainingSurface ? "training-surface" : "hub-surface"}`}
+    >
       <header className="portal-header">
-        <a className="portal-brand" href="#/portal">
-          <span>R</span>
+        <a
+          className="portal-brand"
+          href={trainingSurface ? "#/training" : "#/portal"}
+        >
+          <span>{trainingSurface ? "學" : "R"}</span>
           <strong>
-            RMBotics Hub<small>員工數位工作台</small>
+            {trainingSurface ? "RMBotics Learning" : "RMBotics Hub"}
+            <small>
+              {trainingSurface ? "教育訓練平台" : "員工單一入口"}
+            </small>
           </strong>
         </a>
         <nav>
-          <a href="#/portal">返回員工入口</a>
-          {context.systems.some((s) => s.code === "training") && (
-            <a href="#/training">我的學習</a>
+          <span className="platform-context-chip">
+            {trainingSurface ? "教育訓練" : "單一入口"}
+          </span>
+          {trainingSurface ? (
+            <>
+              <a href="#/portal">返回單一入口</a>
+              <a href="#/training">我的學習</a>
+              {trainingManager && <a href="#/training/admin">訓練管理</a>}
+            </>
+          ) : (
+            <>
+              <a href="#/portal">入口首頁</a>
+              {peopleAdmin && <a href="#/portal/admin">入口管理</a>}
+            </>
           )}
-          {peopleAdmin && <a href="#/portal/admin">平台管理</a>}
           <span>{context.employee.name}</span>
           <button
             onClick={() => void supabase.auth.signOut({ scope: "local" })}
@@ -46,14 +68,14 @@ export function Portal({
       )}
       {route.startsWith("#/portal/admin") ? (
         peopleAdmin ? (
-          <TrainingAdmin context={context} />
+          <TrainingAdmin key="platform-admin" context={context} scope="platform" />
         ) : (
           <p role="alert">尚未取得平台人員管理權限。</p>
         )
       ) : route.startsWith("#/training") ? (
         context.systems.some((s) => s.code === "training") ? (
           route.startsWith("#/training/admin") ? (
-            <TrainingAdmin context={context} />
+            <TrainingAdmin key="training-admin" context={context} scope="training" />
           ) : (
             <Training route={route} />
           )

@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 export function PendingPortal({ name }: { name: string }) {
   return (
-    <div className="training-app">
+    <div className="training-app hub-surface">
       <header className="portal-header">
         <a className="portal-brand" href="#/portal">
           <span>員</span>

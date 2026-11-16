@@ -23,15 +23,24 @@ import { exportWorkbook, importTemplate, readImport } from "./workbooks";
 type Tab =
   | "overview"
   | "people"
+  | "organization"
+  | "access"
   | "jobs"
   | "courses"
   | "materials"
   | "assign"
   | "reports"
   | "settings";
-export function TrainingAdmin({ context }: { context: Context }) {
+export function TrainingAdmin({
+  context,
+  scope = "training",
+}: {
+  context: Context;
+  scope?: "platform" | "training";
+}) {
+  const platform = scope === "platform";
   const [data, setData] = useState<AdminData | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(platform ? "people" : "overview");
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<
     | { kind: "course"; item: Course | null }
@@ -46,15 +55,16 @@ export function TrainingAdmin({ context }: { context: Context }) {
     context.grants.some((g) => g.system_code === "training" && g.role === "hr");
   const load = useCallback(async () => {
     try {
-      const [adminData, materials] = await Promise.all([
-        api<Omit<AdminData, "materials">>("admin"),
-        materialApi<AdminData["materials"]>("list"),
-      ]);
+      const adminData = await api<Omit<AdminData, "materials">>("admin");
+      const materials =
+        !platform && admin
+          ? await materialApi<AdminData["materials"]>("list")
+          : [];
       setData({ ...adminData, materials });
     } catch (e) {
       setError((e as Error).message);
     }
-  }, []);
+  }, [admin, platform]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -85,27 +95,51 @@ export function TrainingAdmin({ context }: { context: Context }) {
     data.employees.find((e) => e.id === id)?.name || id;
   return (
     <main className="training-main">
-      <p className="eyebrow">PLATFORM MANAGEMENT</p>
-      <h1>員工平台管理中心</h1>
-      <p>先建立共用人員主檔與應用資格，再到各功能維護課程、活動及個別角色。</p>
-      <section className="platform-sequence" aria-label="平台設定順序">
-        <span><b>1</b> 建立人員</span>
-        <i>→</i>
-        <span><b>2</b> 開通應用</span>
-        <i>→</i>
-        <span><b>3</b> 維護各功能</span>
-      </section>
+      <p className="eyebrow">
+        {platform ? "IDENTITY & ORGANIZATION" : "LEARNING ADMINISTRATION"}
+      </p>
+      <h1>{platform ? "單一入口管理" : "教育訓練管理"}</h1>
+      <p>
+        {platform
+          ? "只維護登入所需的人員主檔、組織歸屬、應用資格與管理權限。"
+          : "只維護教材、課程、職務訓練、開課指派、學習紀錄與訓練通知。"}
+      </p>
+      {platform ? (
+        <section className="platform-sequence" aria-label="入口設定順序">
+          <span><b>1</b> 建立人員</span>
+          <i>→</i>
+          <span><b>2</b> 設定組織</span>
+          <i>→</i>
+          <span><b>3</b> 開通應用</span>
+        </section>
+      ) : (
+        people && (
+          <a className="platform-boundary-link" href="#/portal/admin">
+            人員、部門與登入資格請至「單一入口管理」設定 →
+          </a>
+        )
+      )}
       <nav className="admin-tabs">
         {(
-          [
-            ["overview", "管理總覽"],
-            ...(people ? [["people", "人員主檔與應用"]] : []),
-            ["jobs", "職務與職責"],
-            ...(admin ? [["materials", "教材庫"], ["courses", "課程與題庫"]] : []),
-            ["assign", "開課與指派"],
-            ["reports", "報表"],
-            ...(admin ? [["settings", "角色與系統設定"]] : []),
-          ] as [Tab, string][]
+          (platform
+            ? [
+                ...(people ? [["people", "人員與登入"]] : []),
+                ...(admin ? [["organization", "組織設定"]] : []),
+                ...(admin ? [["access", "應用與權限"]] : []),
+              ]
+            : [
+                ["overview", "訓練總覽"],
+                ["jobs", "職務與職責"],
+                ...(admin
+                  ? [
+                      ["materials", "教材庫"],
+                      ["courses", "課程與題庫"],
+                    ]
+                  : []),
+                ["assign", "開課與指派"],
+                ["reports", "訓練報表"],
+                ...(admin ? [["settings", "通知設定"]] : []),
+              ]) as [Tab, string][]
         ).map(([id, label]) => (
           <button
             className={tab === id ? "selected" : ""}
@@ -206,6 +240,38 @@ export function TrainingAdmin({ context }: { context: Context }) {
             onSave={(p) => act("person_save", p)}
           />
           <RosterImport onDone={load} />
+        </>
+      )}
+      {tab === "organization" && platform && admin && (
+        <section className="panel">
+          <p className="eyebrow">ORGANIZATION DIRECTORY</p>
+          <h2>組織與部門</h2>
+          <p>部門會供登入後的權限範圍與各應用沿用；工作地點仍由零食平台獨立維護。</p>
+          <div className="button-row">
+            {data.departments.map((d) => (
+              <span className="badge" key={d.id}>
+                {d.name}
+              </span>
+            ))}
+          </div>
+          <button
+            className="primary"
+            onClick={() => {
+              const name = prompt("新增部門名稱");
+              if (name) void act("department", { name });
+            }}
+          >
+            新增部門
+          </button>
+        </section>
+      )}
+      {tab === "access" && platform && admin && (
+        <>
+          <Permissions data={data} onSave={act} />
+          <SystemSettings
+            systems={data.systems}
+            onSave={(p) => act("system", p)}
+          />
         </>
       )}
       {tab === "materials" && admin && (
@@ -358,6 +424,9 @@ export function TrainingAdmin({ context }: { context: Context }) {
               done={() => void load()}
             />
           )}
+          {people && (
+            <JobTenures data={data} onSave={(p) => act("person_save", p)} />
+          )}
         </>
       )}
       {tab === "assign" && (
@@ -438,34 +507,10 @@ export function TrainingAdmin({ context }: { context: Context }) {
       )}
       {tab === "reports" && <Reports data={data} />}
       {tab === "settings" && admin && (
-        <>
-          <section className="panel">
-            <h2>部門</h2>
-            <p>工作地點與部門分開維護。</p>
-            {data.departments.map((d) => (
-              <span className="badge" key={d.id}>
-                {d.name}
-              </span>
-            ))}
-            <button
-              onClick={() => {
-                const name = prompt("新增部門名稱");
-                if (name) void act("department", { name });
-              }}
-            >
-              新增部門
-            </button>
-          </section>
-          <Permissions data={data} onSave={act} />
-          <NotificationSettings
-            initial={data.settings!}
-            onSave={(p) => act("settings", p)}
-          />
-          <SystemSettings
-            systems={data.systems}
-            onSave={(p) => act("system", p)}
-          />
-        </>
+        <NotificationSettings
+          initial={data.settings!}
+          onSave={(p) => act("settings", p)}
+        />
       )}
     </main>
   );
@@ -495,7 +540,7 @@ function People({
     <section className="panel">
       <p className="eyebrow">SHARED PEOPLE DIRECTORY</p>
       <h2>共用人員主檔</h2>
-      <p>人員只建立一次；目前只在這裡設定教育訓練資格。零食平台沿用既有資格與資料，本次不連動異動。</p>
+      <p>人員只建立一次，供單一入口登入與各應用沿用；此處不維護課程或零食活動資料。</p>
       <div className="button-row">
         <select
           aria-label="選擇員工"
@@ -572,7 +617,7 @@ function People({
         </label>
       )}
       <fieldset>
-        <legend>教育訓練使用資格（新增不自動開通）</legend>
+        <legend>應用使用資格（新增不自動開通）</legend>
         {["training"].map((s) => (
           <label className="check" key={s}>
             <input
@@ -595,64 +640,122 @@ function People({
         ))}
       </fieldset>
       {admin && <p className="boundary-note">零食投票目前維持獨立管理；儲存此頁會保留既有零食資格，不會自動新增或移除。</p>}
-      <fieldset>
-        <legend>職務與接任日（可兼任）</legend>
-        {data.jobs
-          .filter((j) => j.published)
-          .map((j) => {
-            const tenure = p.tenures.find(
-              (t) => t.job_id === j.id && !t.end_date,
-            );
-            return (
-              <div className="inline-fields" key={j.id}>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={!!tenure}
-                    onChange={(e) =>
-                      patch({
-                        tenures: e.target.checked
-                          ? [
-                              ...p.tenures,
-                              { job_id: j.id, start_date: "", end_date: null },
-                            ]
-                          : p.tenures.filter((t) => t.job_id !== j.id),
-                      })
-                    }
-                  />
-                  {j.published?.name}
-                </label>
-                {tenure && (
-                  <label>
-                    接任日
-                    <input
-                      type="date"
-                      required
-                      value={tenure.start_date.slice(0, 10)}
-                      onChange={(e) =>
-                        patch({
-                          tenures: p.tenures.map((t) =>
-                            t.job_id === j.id
-                              ? { ...t, start_date: e.target.value }
-                              : t,
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                )}
-              </div>
-            );
-          })}
-      </fieldset>
       <button
         className="primary"
         onClick={() =>
           void onSave({ ...p, tenures: p.tenures.filter((t) => !t.end_date) })
         }
       >
-        儲存人員與任職資料
+        儲存人員與登入資料
       </button>
+    </section>
+  );
+}
+function JobTenures({
+  data,
+  onSave,
+}: {
+  data: AdminData;
+  onSave: (p: object) => Promise<void>;
+}) {
+  const [employeeId, setEmployeeId] = useState("");
+  const person = data.employees.find((e) => e.id === employeeId) || null;
+  const [tenures, setTenures] = useState<Person["tenures"]>([]);
+  const selectPerson = (id: string) => {
+    const selected = data.employees.find((e) => e.id === id);
+    setEmployeeId(id);
+    setTenures(selected?.tenures || []);
+  };
+  return (
+    <section className="panel">
+      <p className="eyebrow">TRAINING RESPONSIBILITY</p>
+      <h2>職務與接任日</h2>
+      <p>此資料只供教育訓練判斷職務必修課程，不屬於登入或組織主檔。</p>
+      <label>
+        員工
+        <select
+          value={employeeId}
+          onChange={(e) => selectPerson(e.target.value)}
+        >
+          <option value="">請選擇</option>
+          {data.employees
+            .filter((e) => e.active)
+            .map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      {person && (
+        <>
+          <fieldset>
+            <legend>目前職務（可兼任）</legend>
+            {data.jobs
+              .filter((j) => j.published)
+              .map((j) => {
+                const tenure = tenures.find(
+                  (t) => t.job_id === j.id && !t.end_date,
+                );
+                return (
+                  <div className="inline-fields" key={j.id}>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={!!tenure}
+                        onChange={(e) =>
+                          setTenures(
+                            e.target.checked
+                              ? [
+                                  ...tenures,
+                                  {
+                                    job_id: j.id,
+                                    start_date: "",
+                                    end_date: null,
+                                  },
+                                ]
+                              : tenures.filter((t) => t.job_id !== j.id),
+                          )
+                        }
+                      />
+                      {j.published?.name}
+                    </label>
+                    {tenure && (
+                      <label>
+                        接任日
+                        <input
+                          type="date"
+                          required
+                          value={tenure.start_date.slice(0, 10)}
+                          onChange={(e) =>
+                            setTenures(
+                              tenures.map((t) =>
+                                t.job_id === j.id
+                                  ? { ...t, start_date: e.target.value }
+                                  : t,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+          </fieldset>
+          <button
+            className="primary"
+            onClick={() =>
+              void onSave({
+                ...person,
+                tenures: tenures.filter((t) => !t.end_date),
+              })
+            }
+          >
+            儲存職務與接任日
+          </button>
+        </>
+      )}
     </section>
   );
 }
