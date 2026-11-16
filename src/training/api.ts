@@ -17,6 +17,28 @@ export async function materialApi<T>(action: string, p: object = {}): Promise<T>
   if (error) throw new PortalApiError(error.message, error.code);
   return data as T;
 }
+export async function organizationApi<T>(action: string, p: object = {}): Promise<T> {
+  const { data, error } = await supabase.rpc("portal_organization_rpc", { action, p });
+  if (error) throw new PortalApiError(error.message, error.code);
+  return data as T;
+}
+export async function externalTrainingApi<T>(action: string, p: object = {}): Promise<T> {
+  const { data, error } = await supabase.rpc("training_external_rpc", { action, p });
+  if (error) throw new PortalApiError(error.message, error.code);
+  return data as T;
+}
+export async function uploadCertificate(path: string, file: File) {
+  const { error } = await supabase.storage.from("training-certificates").upload(path, file, {
+    upsert: true,
+    contentType: file.type,
+  });
+  if (error) throw new PortalApiError(error.message, "storage");
+}
+export async function certificateUrl(path: string) {
+  const { data, error } = await supabase.storage.from("training-certificates").createSignedUrl(path, 300);
+  if (error) throw new PortalApiError(error.message, "storage");
+  return data.signedUrl;
+}
 export async function courseSyncApi<T>(p: object): Promise<T> {
   const { data, error } = await supabase.rpc("training_course_sync_rpc", { p });
   if (error) throw new PortalApiError(error.message, error.code);

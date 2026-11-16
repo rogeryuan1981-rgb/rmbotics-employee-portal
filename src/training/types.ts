@@ -146,7 +146,7 @@ export type Notification = {
   read_at: string | null;
 };
 export type AdminData = {
-  departments: { id: string; name: string }[];
+  departments: { id: string; name: string; parent_id: string | null; manager_employee_id: string | null }[];
   employees: Person[];
   jobs: Job[];
   courses: Course[];
@@ -162,4 +162,26 @@ export type Settings = {
   before: number[];
   overdue_every: number;
   hr_digest: boolean;
+};
+export type ExternalCourse = {
+  id: string;
+  title: string;
+  provider: string;
+  start_date: string | null;
+  end_date: string | null;
+  hours: number;
+  notes: string;
+};
+export type ExternalEnrollment = {
+  id: string;
+  course_id: string;
+  employee_id: string;
+  status: "assigned" | "submitted" | "approved" | "rejected";
+  certificate_path: string | null;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  course?: ExternalCourse;
+  employee_name?: string;
+  certificate_url?: string;
 };

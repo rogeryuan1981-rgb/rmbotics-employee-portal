@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, materialApi, dateTime, deadlineLabel, duration } from "./api";
+import { api, materialApi, organizationApi, externalTrainingApi, certificateUrl, dateTime, deadlineLabel, duration } from "./api";
 import type {
   AdminData,
   Context,
@@ -10,6 +10,8 @@ import type {
   Link,
   Settings,
   System,
+  ExternalCourse,
+  ExternalEnrollment,
 } from "./types";
 import {
   CourseEditor,
@@ -29,6 +31,7 @@ type Tab =
   | "courses"
   | "materials"
   | "assign"
+  | "external"
   | "reports"
   | "settings";
 export function TrainingAdmin({
@@ -137,6 +140,7 @@ export function TrainingAdmin({
                     ]
                   : []),
                 ["assign", "開課與指派"],
+                ["external", "外訓與證書"],
                 ["reports", "訓練報表"],
                 ...(admin ? [["settings", "通知設定"]] : []),
               ]) as [Tab, string][]
@@ -243,27 +247,7 @@ export function TrainingAdmin({
         </>
       )}
       {tab === "organization" && platform && admin && (
-        <section className="panel">
-          <p className="eyebrow">ORGANIZATION DIRECTORY</p>
-          <h2>組織與部門</h2>
-          <p>部門會供登入後的權限範圍與各應用沿用；工作地點仍由零食平台獨立維護。</p>
-          <div className="button-row">
-            {data.departments.map((d) => (
-              <span className="badge" key={d.id}>
-                {d.name}
-              </span>
-            ))}
-          </div>
-          <button
-            className="primary"
-            onClick={() => {
-              const name = prompt("新增部門名稱");
-              if (name) void act("department", { name });
-            }}
-          >
-            新增部門
-          </button>
-        </section>
+        <OrganizationSettings departments={data.departments} employees={data.employees} onSaved={load} />
       )}
       {tab === "access" && platform && admin && (
         <>
@@ -506,6 +490,7 @@ export function TrainingAdmin({
         </>
       )}
       {tab === "reports" && <Reports data={data} />}
+      {tab === "external" && <ExternalTrainingAdmin data={data} canCreate={admin} />}
       {tab === "settings" && admin && (
         <NotificationSettings
           initial={data.settings!}
@@ -513,6 +498,182 @@ export function TrainingAdmin({
         />
       )}
     </main>
+  );
+}
+function ExternalTrainingAdmin({ data, canCreate }: { data: AdminData; canCreate: boolean }) {
+  const [courses, setCourses] = useState<ExternalCourse[]>([]);
+  const [enrollments, setEnrollments] = useState<ExternalEnrollment[]>([]);
+  const [draft, setDraft] = useState({ title: "", provider: "", start_date: "", end_date: "", hours: 0, notes: "" });
+  const [courseId, setCourseId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    const result = await externalTrainingApi<{ courses: ExternalCourse[]; enrollments: ExternalEnrollment[] }>("admin");
+    setCourses(result.courses);
+    setEnrollments(await Promise.all(result.enrollments.map(async (enrollment) => ({
+      ...enrollment,
+      certificate_url: enrollment.certificate_path ? await certificateUrl(enrollment.certificate_path) : undefined,
+    }))));
+  }, []);
+  useEffect(() => { void load().catch((e) => setError(e.message)); }, [load]);
+  const run = async (action: string, p: object) => {
+    try { setError(""); await externalTrainingApi(action, p); await load(); }
+    catch (e) { setError((e as Error).message); }
+  };
+  return <>
+    {canCreate && <section className="panel">
+      <p className="eyebrow">EXTERNAL TRAINING</p>
+      <h2>建立外訓課程</h2>
+      <p>外部訓練獨立於教材庫與一般開課；建立後再指派參訓人員。</p>
+      <div className="form-grid">
+        <label>課程名稱<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
+        <label>訓練機構<input value={draft.provider} onChange={(e) => setDraft({ ...draft, provider: e.target.value })} /></label>
+        <label>開始日期<input type="date" value={draft.start_date} onChange={(e) => setDraft({ ...draft, start_date: e.target.value })} /></label>
+        <label>結束日期<input type="date" value={draft.end_date} onChange={(e) => setDraft({ ...draft, end_date: e.target.value })} /></label>
+        <label>訓練時數<input type="number" min="0" step="0.5" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: Number(e.target.value) })} /></label>
+      </div>
+      <label>備註<textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
+      <button className="primary" disabled={!draft.title.trim() || !draft.provider.trim()} onClick={() => void run("save_course", draft)}>建立外訓課程</button>
+    </section>}
+    <section className="panel">
+      <h2>指派參訓人員</h2>
+      <div className="form-grid">
+        <label>外訓課程<select value={courseId} onChange={(e) => setCourseId(e.target.value)}><option value="">請選擇</option>{courses.map((course) => <option key={course.id} value={course.id}>{course.title} · {course.provider}</option>)}</select></label>
+        <label>參訓人員<select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}><option value="">請選擇</option>{data.employees.filter((employee) => employee.active).map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
+      </div>
+      <button disabled={!courseId || !employeeId} onClick={() => void run("assign", { course_id: courseId, employee_id: employeeId })}>指派外訓</button>
+    </section>
+    <section className="panel">
+      <h2>結業證書審核</h2>
+      <p>只有審核通過才列為外訓完成；退回後員工可重新上傳。</p>
+      {error && <p role="alert" className="error">{error}</p>}
+      {enrollments.map((enrollment) => <div className="history-row" key={enrollment.id}>
+        <span>{enrollment.employee_name} · {enrollment.course?.title} · {{assigned:"待上傳",submitted:"待審核",approved:"已完成",rejected:"已退回"}[enrollment.status]}</span>
+        <div className="button-row">
+          {enrollment.certificate_url && <a href={enrollment.certificate_url} target="_blank" rel="noreferrer">查看證書</a>}
+          {enrollment.status === "submitted" && <>
+            <button className="primary" onClick={() => void run("review", { id: enrollment.id, approved: true, note: "證書審核通過" })}>通過</button>
+            <button onClick={() => { const note=prompt("請填退回原因"); if(note) void run("review", { id: enrollment.id, approved: false, note }); }}>退回</button>
+          </>}
+        </div>
+      </div>)}
+    </section>
+  </>;
+}
+type Department = AdminData["departments"][number];
+function departmentTree(departments: Department[]) {
+  const rows: { department: Department; depth: number }[] = [];
+  const visited = new Set<string>();
+  const walk = (parentId: string | null, depth: number) => {
+    departments
+      .filter((d) => d.parent_id === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name, "zh-TW"))
+      .forEach((department) => {
+        if (visited.has(department.id)) return;
+        visited.add(department.id);
+        rows.push({ department, depth });
+        walk(department.id, depth + 1);
+      });
+  };
+  walk(null, 0);
+  departments
+    .filter((d) => !visited.has(d.id))
+    .forEach((department) => rows.push({ department, depth: 0 }));
+  return rows;
+}
+function OrganizationSettings({
+  departments,
+  employees,
+  onSaved,
+}: {
+  departments: Department[];
+  employees: Person[];
+  onSaved: () => Promise<void>;
+}) {
+  const tree = departmentTree(departments);
+  const [selectedId, setSelectedId] = useState(departments[0]?.id || "");
+  const selected = departments.find((d) => d.id === selectedId) || null;
+  const [draft, setDraft] = useState<Department>({ id: "", name: "", parent_id: null, manager_employee_id: null });
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (selected) setDraft(selected);
+  }, [selected]);
+  const descendants = (id: string) => {
+    const found = new Set<string>();
+    const visit = (parentId: string) =>
+      departments.filter((d) => d.parent_id === parentId).forEach((d) => {
+        if (!found.has(d.id)) { found.add(d.id); visit(d.id); }
+      });
+    visit(id);
+    return found;
+  };
+  const blockedParents = draft.id ? descendants(draft.id) : new Set<string>();
+  if (draft.id) blockedParents.add(draft.id);
+  const beginNew = (parentId: string | null) => {
+    setSelectedId("");
+    setDraft({ id: "", name: "", parent_id: parentId, manager_employee_id: null });
+    setError("");
+  };
+  return (
+    <section className="panel">
+      <p className="eyebrow">ORGANIZATION DIRECTORY</p>
+      <h2>組織層級</h2>
+      <p>每位人員歸屬一個單位；上層單位的主管權限與課程適用範圍會自動涵蓋所有下層單位。</p>
+      <div className="organization-layout">
+        <aside className="organization-tree">
+          <button className="primary" onClick={() => beginNew(null)}>＋ 新增最上層單位</button>
+          <nav aria-label="組織樹">
+            {tree.map(({ department, depth }) => (
+              <button
+                key={department.id}
+                className={selectedId === department.id ? "selected" : ""}
+                style={{ paddingInlineStart: `${14 + depth * 22}px` }}
+                onClick={() => setSelectedId(department.id)}
+              >
+                <span>{depth ? "↳" : "◆"}</span>{department.name}
+              </button>
+            ))}
+          </nav>
+        </aside>
+        <div className="organization-editor">
+          <small>{draft.id ? "EDIT ORGANIZATION" : "NEW ORGANIZATION"}</small>
+          <h3>{draft.id ? `編輯 ${draft.name}` : "建立組織單位"}</h3>
+          <label>組織名稱
+            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          </label>
+          <label>上層組織
+            <select value={draft.parent_id || ""} onChange={(e) => setDraft({ ...draft, parent_id: e.target.value || null })}>
+              <option value="">無（最上層）</option>
+              {tree.filter(({ department }) => !blockedParents.has(department.id)).map(({ department, depth }) => (
+                <option key={department.id} value={department.id}>{`${"— ".repeat(depth)}${department.name}`}</option>
+              ))}
+            </select>
+          </label>
+          <label>單位主管
+            <select value={draft.manager_employee_id || ""} onChange={(e) => setDraft({ ...draft, manager_employee_id: e.target.value || null })}>
+              <option value="">尚未指定</option>
+              {employees.filter((employee) => employee.active).sort((a, b) => a.name.localeCompare(b.name, "zh-TW")).map((employee) => (
+                <option key={employee.id} value={employee.id}>{employee.name} · {employee.email}</option>
+              ))}
+            </select>
+            <small>主管可管理本單位及所有下層單位的教育訓練。</small>
+          </label>
+          <p className="boundary-note">變更上層只會調整組織關係，不會刪除人員、職務或既有資料。</p>
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="button-row">
+            <button className="primary" disabled={!draft.name.trim()} onClick={async () => {
+              try {
+                setError("");
+                const saved = await organizationApi<Department>("save", draft);
+                await onSaved();
+                setSelectedId(saved.id);
+              } catch (e) { setError((e as Error).message); }
+            }}>儲存組織</button>
+            {draft.id && <button onClick={() => beginNew(draft.id)}>＋ 在此單位下新增</button>}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 function People({
@@ -622,9 +783,9 @@ function People({
                 onChange={(e) => patch({ department_id: e.target.value })}
               >
                 <option value="">請選擇</option>
-                {data.departments.map((d) => (
+                {departmentTree(data.departments).map(({ department: d, depth }) => (
                   <option key={d.id} value={d.id}>
-                    {d.name}
+                    {`${"— ".repeat(depth)}${d.name}`}
                   </option>
                 ))}
               </select>
@@ -1323,7 +1484,7 @@ function Permissions({
         全公司範圍（管理員須勾選）
       </label>
       {!all &&
-        data.departments.map((d) => (
+        departmentTree(data.departments).map(({ department: d, depth }) => (
           <label className="check" key={d.id}>
             <input
               type="checkbox"
@@ -1336,7 +1497,7 @@ function Permissions({
                 )
               }
             />
-            {d.name}
+            {`${"— ".repeat(depth)}${d.name}`}（含下層）
           </label>
         ))}
       <button

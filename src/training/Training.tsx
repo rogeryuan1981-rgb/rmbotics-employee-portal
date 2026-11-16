@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, dateTime, deadlineLabel, duration } from "./api";
-import type { CourseContent, Requirement, Notification, Paper } from "./types";
+import { api, externalTrainingApi, uploadCertificate, dateTime, deadlineLabel, duration } from "./api";
+import type { CourseContent, Requirement, Notification, Paper, ExternalEnrollment } from "./types";
 import { Materials } from "./Materials";
 import { markSharedActivity } from "../lib/shared-session";
 type Detail = {
@@ -31,6 +31,7 @@ export function Training({ route }: { route: string }) {
     notifications: Notification[];
   } | null>(null);
   const [error, setError] = useState("");
+  const [external, setExternal] = useState<ExternalEnrollment[]>([]);
   const id = route.split("/")[2];
   useEffect(() => {
     if (id) return;
@@ -44,6 +45,9 @@ export function Training({ route }: { route: string }) {
       .catch((e) => {
         if (active) setError(e.message);
       });
+    void externalTrainingApi<ExternalEnrollment[]>("mine").then((items) => {
+      if (active) setExternal(items);
+    }).catch((e) => { if (active) setError(e.message); });
     return () => {
       active = false;
     };
@@ -112,6 +116,13 @@ export function Training({ route }: { route: string }) {
           {data?.requirements.length === 0 && (
             <div className="empty-state">目前沒有指派課程。</div>
           )}
+          <section className="panel external-learning">
+            <p className="eyebrow">EXTERNAL TRAINING</p>
+            <h2>我的外訓與結業證書</h2>
+            <p>外訓結束後上傳 PDF 或圖片證書；管理端審核通過後才視為完成。</p>
+            {external.length === 0 && <p>目前沒有外訓指派。</p>}
+            {external.map((enrollment) => <ExternalEnrollmentCard key={enrollment.id} enrollment={enrollment} reload={() => externalTrainingApi<ExternalEnrollment[]>("mine").then(setExternal)} />)}
+          </section>
         </section>
         <aside className="panel learning-notifications">
           <h2>我的通知</h2>
@@ -157,6 +168,30 @@ export function Training({ route }: { route: string }) {
       </div>
     </main>
   );
+}
+function ExternalEnrollmentCard({ enrollment, reload }: { enrollment: ExternalEnrollment; reload: () => Promise<unknown> }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const label = { assigned: "待上傳", submitted: "審核中", approved: "已完成", rejected: "已退回" }[enrollment.status];
+  return <article className="external-enrollment-card">
+    <div><span className="badge">{label}</span><h3>{enrollment.course?.title}</h3><p>{enrollment.course?.provider} · {enrollment.course?.hours || 0} 小時</p></div>
+    {enrollment.review_note && <p className={enrollment.status === "rejected" ? "warning" : "success"}>審核說明：{enrollment.review_note}</p>}
+    {enrollment.status !== "approved" && <div className="certificate-upload">
+      <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+      <button className="primary" disabled={!file} onClick={async () => {
+        if (!file) return;
+        try {
+          setError("");
+          const extension = file.name.split(".").pop()?.toLowerCase() || "pdf";
+          const path = `${enrollment.employee_id}/${enrollment.id}/certificate.${extension}`;
+          await uploadCertificate(path, file);
+          await externalTrainingApi("submit", { id: enrollment.id, certificate_path: path });
+          await reload();
+        } catch (e) { setError((e as Error).message); }
+      }}>上傳並送審</button>
+    </div>}
+    {error && <p className="error" role="alert">{error}</p>}
+  </article>;
 }
 function Study({ id }: { id: string }) {
   const [data, setData] = useState<Detail | null>(null);

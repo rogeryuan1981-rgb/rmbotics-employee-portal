@@ -187,7 +187,13 @@ export function MaterialLibrary({materials,done}:{materials:Material[];done:()=>
 }
 
 type CourseSection="basic"|"materials"|"questions"|"schedule"|"publish";
-export function CourseEditor({course,materials,departments,done}:{course:Course|null;materials:Material[];departments:{id:string;name:string}[];done:()=>void}) {
+type DepartmentOption={id:string;name:string;parent_id?:string|null};
+function orderedDepartments(departments:DepartmentOption[]){
+  const result:{department:DepartmentOption;depth:number}[]=[];const seen=new Set<string>();
+  const walk=(parent:string|null,depth:number)=>departments.filter(d=>(d.parent_id||null)===parent).sort((a,b)=>a.name.localeCompare(b.name,"zh-TW")).forEach(department=>{if(seen.has(department.id))return;seen.add(department.id);result.push({department,depth});walk(department.id,depth+1);});
+  walk(null,0);departments.filter(d=>!seen.has(d.id)).forEach(department=>result.push({department,depth:0}));return result;
+}
+export function CourseEditor({course,materials,departments,done}:{course:Course|null;materials:Material[];departments:DepartmentOption[];done:()=>void}) {
   const [section,setSection]=useState<CourseSection>("basic");
   const [value, setValue] = useState<CourseDraft>(course?.draft || {
       title:"",seconds:3600,pass_score:80,question_count:1,minutes:0,cycle:"once",departments:[],start:"",end:"",material_ids:[],questions:[],
@@ -295,7 +301,7 @@ export function CourseEditor({course,materials,departments,done}:{course:Course|
       {section==="materials"&&<><div className="section-explainer"><strong>引用教材</strong><span>只選擇教材庫中的資產；要新增或修改教材，請到「教材庫」。</span></div><div className="material-picker">{activeMaterials.map(m=><label className={value.material_ids.includes(m.id)?"selected":""} key={m.id}><input type="checkbox" checked={value.material_ids.includes(m.id)} onChange={e=>patch({material_ids:e.target.checked?[...value.material_ids,m.id]:value.material_ids.filter(id=>id!==m.id)})}/><span><strong>{m.title}</strong><small>{m.kind==="text"?"網頁文字":m.kind==="pdf"?"PDF":"YouTube"} · 版本 {m.revision||1}</small></span></label>)}</div>{!activeMaterials.length&&<p className="warning">教材庫尚無啟用教材。請先到「教材庫」建立，課程草稿仍可先儲存。</p>}<div className="button-row"><button onClick={()=>void save()}>儲存教材引用</button><button className="primary" onClick={()=>setSection("questions")}>下一步：建立題庫</button></div></>}
       {section==="schedule"&&<><div className="section-explainer"><strong>常規開課設定</strong><span>設定課程發布後的適用部門、週期與開放期間；不在這裡編輯教材。</span></div><div className="form-grid"><label>訓練週期<select value={value.cycle} onChange={e=>patch({cycle:e.target.value as CourseDraft["cycle"]})}><option value="once">一次性</option><option value="annual">每年必修</option></select></label><label>開課時間（空白立即）<input type="datetime-local" value={value.start?.slice(0,16)||""} onChange={e=>patch({start:e.target.value?e.target.value+":00+08:00":""})}/></label><label>結束時間（空白永久）<input type="datetime-local" value={value.end?.slice(0,16)||""} onChange={e=>patch({end:e.target.value?e.target.value+":00+08:00":""})}/></label></div><fieldset>
         <legend>適用部門（不勾選為全公司）</legend>
-        {departments.map((d) => (
+        {orderedDepartments(departments).map(({department:d,depth}) => (
           <label className="check" key={d.id}>
             <input
               type="checkbox"
@@ -308,7 +314,7 @@ export function CourseEditor({course,materials,departments,done}:{course:Course|
                 })
               }
             />
-            {d.name}
+            {`${"— ".repeat(depth)}${d.name}`}（含下層）
           </label>
         ))}
       </fieldset><div className="button-row"><button onClick={()=>void save()}>儲存常規開課設定</button><button className="primary" onClick={()=>setSection("publish")}>下一步：發布檢查</button></div></>}
@@ -486,7 +492,7 @@ export function JobEditor({
 }: {
   job: Job | null;
   courses: Course[];
-  departments: { id: string; name: string }[];
+  departments: DepartmentOption[];
   publishable: boolean;
   done: () => void;
 }) {
@@ -527,9 +533,9 @@ export function JobEditor({
           value={dep}
           onChange={(e) => setDep(e.target.value)}
         >
-          {departments.map((d) => (
+          {orderedDepartments(departments).map(({department:d,depth}) => (
             <option key={d.id} value={d.id}>
-              {d.name}
+              {`${"— ".repeat(depth)}${d.name}`}
             </option>
           ))}
         </select>

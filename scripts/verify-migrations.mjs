@@ -34,9 +34,10 @@ const fresh = (
     "insert into public.employees(name,email) values('新進員工','fresh@example.test') returning id",
   )
 ).rows[0].id;
-for (const file of (
+const migrationFiles = (
   await readdir(new URL("../supabase/migrations/", import.meta.url))
-).sort())
+).sort();
+for (const file of migrationFiles)
   await db.exec(
     await readFile(
       new URL("../supabase/migrations/" + file, import.meta.url),
@@ -62,7 +63,7 @@ assert.equal(
 );
 assert.equal(
   (await db.query("select count(*)::int n from training.migrations")).rows[0].n,
-  5,
+  migrationFiles.length,
 );
 await db.close();
 console.log(

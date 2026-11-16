@@ -137,7 +137,7 @@ test("A09/A13 publication validates bank size, material mapping, and backend enf
   await assert.rejects(publish(course({ question_count: 9 })), /題數不足/);
   const broken = course();
   broken.questions[0].material_id = "missing";
-  await assert.rejects(publish(broken), /對應課程教材/);
+  await assert.rejects(publish(broken), /對應(?:課程|已引用的)教材/);
   await assert.rejects(call(2, "exam_start", { id: rid }), /時數尚未達標/);
 });
 test("A08/A10/A11/A25/B07 server clock lease, dedup sequence, two materials aggregate, load/visibility/idleness", async () => {
