@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, materialApi, organizationApi, externalTrainingApi, certificateUrl, dateTime, deadlineLabel, duration } from "./api";
+import { api, materialApi, organizationApi, accessProfileApi, externalTrainingApi, certificateUrl, dateTime, deadlineLabel, duration } from "./api";
 import type {
   AdminData,
   Context,
@@ -71,11 +71,12 @@ export function TrainingAdmin({
   useEffect(() => {
     void load();
   }, [load]);
-  async function act(action: string, p: object) {
+  async function act<T = unknown>(action: string, p: object): Promise<T | undefined> {
     setError("");
     try {
-      await api(action, p);
+      const result = await api<T>(action, p);
       await load();
+      return result;
     } catch (e) {
       setError((e as Error).message);
     }
@@ -241,7 +242,20 @@ export function TrainingAdmin({
           <People
             data={data}
             admin={admin}
-            onSave={(p) => act("person_save", p)}
+            onSave={async (p, adminSystems) => {
+              setError("");
+              try {
+                const saved = await api<{ id: string }>("person_save", p);
+                await accessProfileApi("save", {
+                  employee_id: saved.id,
+                  systems: p.systems,
+                  admin_systems: adminSystems,
+                });
+                await load();
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
           />
           <RosterImport onDone={load} />
         </>
@@ -683,7 +697,7 @@ function People({
 }: {
   data: AdminData;
   admin: boolean;
-  onSave: (p: object) => Promise<void>;
+  onSave: (p: Person, adminSystems: string[]) => Promise<void>;
 }) {
   const empty: Person = {
     id: "",
@@ -696,6 +710,7 @@ function People({
     tenures: [],
   };
   const [p, setP] = useState<Person>(empty);
+  const [adminSystems, setAdminSystems] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const patch = (v: Partial<Person>) => setP((p) => ({ ...p, ...v }));
   const filteredPeople = data.employees.filter((employee) =>
@@ -710,7 +725,7 @@ function People({
       <p>人員只建立一次，供單一入口登入與各應用沿用；此處不維護課程或零食活動資料。</p>
       <div className="people-directory-layout">
         <aside className="people-directory-sidebar">
-          <button className="primary new-person-button" onClick={() => setP(empty)}>
+          <button className="primary new-person-button" onClick={() => { setP(empty); setAdminSystems([]); }}>
             ＋ 新增人員
           </button>
           <label className="people-search">
@@ -727,7 +742,10 @@ function People({
               <button
                 key={employee.id}
                 className={p.id === employee.id ? "selected" : ""}
-                onClick={() => setP(employee)}
+                onClick={() => {
+                  setP(employee);
+                  setAdminSystems(data.grants.filter((grant) => grant.employee_id === employee.id && grant.role === "admin").map((grant) => grant.system_code));
+                }}
               >
                 <span>
                   <strong>{employee.name}</strong>
@@ -808,41 +826,41 @@ function People({
               />
             </label>
           )}
-          <fieldset>
-            <legend>應用使用資格（新增不自動開通）</legend>
-            {["training"].map((s) => (
-              <label className="check" key={s}>
-                <input
-                  type="checkbox"
-                  checked={p.systems.includes(s)}
-                  onChange={(e) =>
-                    patch({
-                      systems: e.target.checked
-                        ? [...p.systems, s]
-                        : p.systems.filter((x) => x !== s),
-                    })
-                  }
-                />
-                {
-                  {
-                    training: "教育訓練",
-                  }[s] || data.systems.find((system) => system.code === s)?.name
-                }
-              </label>
-            ))}
+          <fieldset className="access-profile-editor">
+            <legend>應用與管理權限</legend>
+            <p>一次設定入口顯示與系統管理權限；授予管理權限時會自動開通該系統。</p>
+            {admin && <div className="access-presets">
+              <button type="button" onClick={() => { const codes=data.systems.filter((system)=>system.enabled).map((system)=>system.code); patch({systems:codes}); setAdminSystems([]); }}>開通兩套系統</button>
+              <button type="button" className="primary" onClick={() => { const codes=data.systems.filter((system)=>system.enabled).map((system)=>system.code); patch({systems:codes}); setAdminSystems(codes); }}>兩套系統全功能管理</button>
+              <button type="button" onClick={() => { patch({systems:[]}); setAdminSystems([]); }}>清除全部資格</button>
+            </div>}
+            <div className="access-system-grid">
+              {data.systems.filter((system) => system.enabled).map((system) => {
+                const enabled=p.systems.includes(system.code);
+                const systemAdmin=adminSystems.includes(system.code);
+                return <article key={system.code} className={enabled ? "enabled" : ""}>
+                  <strong>{system.name}</strong>
+                  <label className="check"><input type="checkbox" checked={enabled} onChange={(e) => {
+                    const systems=e.target.checked?[...new Set([...p.systems,system.code])]:p.systems.filter((code)=>code!==system.code);
+                    patch({systems});
+                    if(!e.target.checked) setAdminSystems((items)=>items.filter((code)=>code!==system.code));
+                  }} />顯示入口並允許使用</label>
+                  {admin && <label className="check"><input type="checkbox" checked={systemAdmin} onChange={(e) => {
+                    if(e.target.checked){ patch({systems:[...new Set([...p.systems,system.code])]}); setAdminSystems((items)=>[...new Set([...items,system.code])]); }
+                    else setAdminSystems((items)=>items.filter((code)=>code!==system.code));
+                  }} />全功能管理員</label>}
+                </article>;
+              })}
+            </div>
+            <small>部門主管與 HR 的限定範圍仍可在「應用與權限」進階設定。</small>
           </fieldset>
-          {admin && (
-            <p className="boundary-note">
-              零食投票目前維持獨立管理；儲存此頁會保留既有零食資格，不會自動新增或移除。
-            </p>
-          )}
           <button
             className="primary"
             onClick={() =>
               void onSave({
                 ...p,
                 tenures: p.tenures.filter((t) => !t.end_date),
-              })
+              }, adminSystems)
             }
           >
             儲存人員與登入資料

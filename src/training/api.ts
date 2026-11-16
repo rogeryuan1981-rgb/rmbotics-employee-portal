@@ -22,6 +22,11 @@ export async function organizationApi<T>(action: string, p: object = {}): Promis
   if (error) throw new PortalApiError(error.message, error.code);
   return data as T;
 }
+export async function accessProfileApi<T>(action: string, p: object = {}): Promise<T> {
+  const { data, error } = await supabase.rpc("portal_access_profile_rpc", { action, p });
+  if (error) throw new PortalApiError(error.message, error.code);
+  return data as T;
+}
 export async function externalTrainingApi<T>(action: string, p: object = {}): Promise<T> {
   const { data, error } = await supabase.rpc("training_external_rpc", { action, p });
   if (error) throw new PortalApiError(error.message, error.code);
