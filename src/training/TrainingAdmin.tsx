@@ -1493,7 +1493,7 @@ function Permissions({
             <div className="form-grid">
         <label>
           系統
-          <select value={system} onChange={(e) => { const code=e.target.value; setSystem(code); if(code==="snack-vote"){ setRole("admin"); setAll(true); } }}>
+          <select value={system} onChange={(e) => { const code=e.target.value; setSystem(code); if(code!=="training"){ setRole("admin"); setAll(true); } }}>
             {data.systems.map((s) => (
               <option key={s.code} value={s.code}>
                 {s.name}
@@ -1566,7 +1566,7 @@ function Permissions({
         <div className="history-row" key={g.id}>
           <span>
             {data.employees.find((e) => e.id === g.employee_id)?.name} ·{" "}
-            {g.system_code} · {g.role} ·{" "}
+            {data.systems.find((system) => system.code === g.system_code)?.name || g.system_code} · {g.role === "admin" ? "系統管理員" : g.role === "hr" ? "HR" : "部門主管"} ·{" "}
             {g.all_departments
               ? "全公司"
               : data.departments.find((d) => d.id === g.department_id)?.name}
