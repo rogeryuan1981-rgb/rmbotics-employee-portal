@@ -76,81 +76,85 @@ export function Training({ route }: { route: string }) {
           </strong>
         </span>
       </div>
-      <div className="course-grid">
-        {data?.requirements.map((r) => (
-          <article className="course-card" key={r.id}>
-            <div className="badge">{status(r)}</div>
-            <h2>{r.course?.title}</h2>
-            <p>
-              {r.cycle === "once" ? "一次性" : `${r.cycle} 年度`} ·{" "}
-              {r.batch === "normal" ? "一般訓練" : `重訓 ${r.batch}`}
-            </p>
-            <p>截止：{deadlineLabel(r.due)}</p>
-            <progress
-              value={Math.min(Number(r.seconds), r.rules.seconds)}
-              max={r.rules.seconds}
-            />
-            <p>
-              已保存 {duration(r.seconds)}／要求 {duration(r.rules.seconds)}
-            </p>
-            {r.result?.score !== null && r.result?.score !== undefined && (
-              <p>成績：{Number(r.result.score).toFixed(2)} 分</p>
-            )}
-            {r.conflict_pending && (
-              <p className="warning">
-                開課期間與個人期限有衝突，管理員處理中。
-              </p>
-            )}
-            <a className="primary-link" href={`#/training/${r.id}`}>
-              {r.completed_at ? "查看完成紀錄" : "進入課程"} →
-            </a>
-          </article>
-        ))}
-      </div>
-      {data?.requirements.length === 0 && (
-        <div className="empty-state">目前沒有指派課程。</div>
-      )}
-      <section className="panel">
-        <h2>我的通知</h2>
-        {data?.notifications.length === 0 && <p>目前沒有通知。</p>}
-        {data?.notifications.map((n) => (
-          <div className="notification" key={n.id}>
-            <a href={n.body.entry}>
-              {n.body.title} ·{" "}
-              {n.kind === "assigned"
-                ? "新增訓練"
-                : n.kind === "retrain"
-                  ? "重新受訓"
-                  : n.kind === "course_updated"
-                    ? "課程內容已更新"
-                  : n.kind === "due"
-                    ? "即將到期"
-                    : "逾期提醒"}
-            </a>
-            {!n.read_at && (
-              <button
-                onClick={async () => {
-                  await api("read_notification", { id: n.id });
-                  setData((d) =>
-                    d
-                      ? {
-                          ...d,
-                          notifications: d.notifications.map((x) =>
-                            x.id === n.id
-                              ? { ...x, read_at: new Date().toISOString() }
-                              : x,
-                          ),
-                        }
-                      : d,
-                  );
-                }}
-              >
-                標示已讀
-              </button>
-            )}
+      <div className="learning-layout">
+        <section className="learning-courses" aria-label="我的課程">
+          <div className="course-grid">
+            {data?.requirements.map((r) => (
+              <article className="course-card" key={r.id}>
+                <div className="badge">{status(r)}</div>
+                <h2>{r.course?.title}</h2>
+                <p>
+                  {r.cycle === "once" ? "一次性" : `${r.cycle} 年度`} ·{" "}
+                  {r.batch === "normal" ? "一般訓練" : `重訓 ${r.batch}`}
+                </p>
+                <p>截止：{deadlineLabel(r.due)}</p>
+                <progress
+                  value={Math.min(Number(r.seconds), r.rules.seconds)}
+                  max={r.rules.seconds}
+                />
+                <p>
+                  已保存 {duration(r.seconds)}／要求 {duration(r.rules.seconds)}
+                </p>
+                {r.result?.score !== null && r.result?.score !== undefined && (
+                  <p>成績：{Number(r.result.score).toFixed(2)} 分</p>
+                )}
+                {r.conflict_pending && (
+                  <p className="warning">
+                    開課期間與個人期限有衝突，管理員處理中。
+                  </p>
+                )}
+                <a className="primary-link" href={`#/training/${r.id}`}>
+                  {r.completed_at ? "查看完成紀錄" : "進入課程"} →
+                </a>
+              </article>
+            ))}
           </div>
-        ))}
-      </section>
+          {data?.requirements.length === 0 && (
+            <div className="empty-state">目前沒有指派課程。</div>
+          )}
+        </section>
+        <aside className="panel learning-notifications">
+          <h2>我的通知</h2>
+          {data?.notifications.length === 0 && <p>目前沒有通知。</p>}
+          {data?.notifications.map((n) => (
+            <div className="notification" key={n.id}>
+              <a href={n.body.entry}>
+                {n.body.title} ·{" "}
+                {n.kind === "assigned"
+                  ? "新增訓練"
+                  : n.kind === "retrain"
+                    ? "重新受訓"
+                    : n.kind === "course_updated"
+                      ? "課程內容已更新"
+                    : n.kind === "due"
+                      ? "即將到期"
+                      : "逾期提醒"}
+              </a>
+              {!n.read_at && (
+                <button
+                  onClick={async () => {
+                    await api("read_notification", { id: n.id });
+                    setData((d) =>
+                      d
+                        ? {
+                            ...d,
+                            notifications: d.notifications.map((x) =>
+                              x.id === n.id
+                                ? { ...x, read_at: new Date().toISOString() }
+                                : x,
+                            ),
+                          }
+                        : d,
+                    );
+                  }}
+                >
+                  標示已讀
+                </button>
+              )}
+            </div>
+          ))}
+        </aside>
+      </div>
     </main>
   );
 }

@@ -244,6 +244,30 @@
   display: block;
   font-size: 30px;
 }
+.learning-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  align-items: start;
+}
+.learning-courses .course-grid {
+  margin-top: 0;
+}
+.learning-notifications {
+  position: sticky;
+  top: 22px;
+  margin-top: 0;
+  max-height: calc(100vh - 44px);
+  overflow: auto;
+}
+.learning-notifications h2 {
+  margin-top: 0;
+}
+.learning-notifications .notification {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+}
 .study-layout {
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
@@ -466,6 +490,16 @@
     min-width: 0;
     flex: 1;
     padding: 15px;
+  }
+  .learning-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .learning-notifications {
+    position: static;
+    order: -1;
+    width: 100%;
+    max-height: none;
   }
   .option-editor {
     flex-wrap: wrap;
