@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, materialApi, organizationApi, accessProfileApi, externalTrainingApi, certificateUrl, dateTime, deadlineLabel, duration } from "./api";
+import { api, materialApi, organizationApi, accessProfileApi, externalTrainingApi, certificateUrl, deleteTrainingRequirement, dateTime, deadlineLabel, duration } from "./api";
 import type {
   AdminData,
   Context,
@@ -84,6 +84,18 @@ export function TrainingAdmin({
       const result = await api<T>(action, p);
       await load();
       return result;
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function removeRequirement(id: string, label: string) {
+    const reason = prompt(`刪除「${label}」的原因（必填）`);
+    if (!reason?.trim()) return;
+    if (!confirm("這會永久刪除本次指派、學習進度、試卷與通知，且無法復原。確定繼續？")) return;
+    setError("");
+    try {
+      await deleteTrainingRequirement({ id, reason: reason.trim() });
+      await load();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -462,7 +474,7 @@ export function TrainingAdmin({
                         <br />
                         {r.course_title}
                         <small>
-                          {r.cycle} · {r.batch}
+                          {r.cycle === "once" ? "一次性" : `${r.cycle} 年度`} · {r.batch === "normal" ? "一般指派" : r.batch}
                         </small>
                       </td>
                       <td>
@@ -499,6 +511,7 @@ export function TrainingAdmin({
                         >
                           調整期限
                         </button>
+                        {admin && <button className="danger-button" onClick={() => void removeRequirement(r.id, `${person(r.employee_id)}－${r.course_title}`)}>刪除訓練紀錄</button>}
                       </td>
                     </tr>
                   ))}
@@ -1369,9 +1382,11 @@ function Reports({ data }: { data: AdminData }) {
       const r = await api<Record<string, unknown>[]>("report", {
         kind,
         ...filter,
+        cycle: filter.cycle.trim() === "一次性" ? "once" : filter.cycle.trim(),
       });
-      setRows(r);
-      if (exportName) await exportWorkbook(r, exportName);
+      const localized = r.map((row) => ({ ...row, cycle: row.cycle === "once" ? "一次性" : row.cycle }));
+      setRows(localized);
+      if (exportName) await exportWorkbook(localized, exportName);
       setMessage(`${r.length} 筆資料`);
     } catch (e) {
       setMessage((e as Error).message);
@@ -1429,8 +1444,9 @@ function Reports({ data }: { data: AdminData }) {
           </label>
         ))}
         <label>
-          義務年度（once 為一次性）
+          義務年度
           <input
+            placeholder="例如：2026 或 一次性"
             value={filter.cycle}
             onChange={(e) =>
               setFilter((f) => ({ ...f, cycle: e.target.value }))

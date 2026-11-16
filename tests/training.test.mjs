@@ -992,6 +992,30 @@ test("older device cannot regain access when the newer device logs out", async (
   await sql("delete from auth.sessions where id=$1", [newer]);
   await assert.rejects(call(2, "context"), /登入已失效/);
 });
+
+test("admin can delete one test training record and its dependent progress with an audit trail", async () => {
+  const cid = await publish(course({ title: "刪除紀錄測試" }));
+  const rid = await assign(cid, 2, "delete-record-test");
+  await sql("insert into training.positions(requirement_id,material_id,position) values($1,'m1',12)", [rid]);
+  await sql("insert into training.issues(employee_id,requirement_id,material_id,message) values($1,$2,'m1','測試問題')", [eid(2), rid]);
+  await sql("insert into training.deadline_changes(requirement_id,old_due,new_due,reason,actor) select id,due,due,'測試', $2 from training.requirements where id=$1", [rid, eid(1)]);
+  await sql("insert into training.papers(requirement_id,questions,pass_score,total) values($1,'[]',80,1)", [rid]);
+
+  const remove = (user, id, reason) => asUser(db, uid(user), sessions[user], async (tx) =>
+    (await tx.query("select public.training_delete_requirement($1::jsonb) value", [JSON.stringify({ id, reason })])).rows[0].value);
+
+  await assert.rejects(remove(3, rid, "主管嘗試刪除"), /僅教育訓練系統管理員/);
+  await assert.rejects(remove(1, rid, ""), /請填寫刪除原因/);
+  assert.equal((await remove(1, rid, "清除測試資料")).deleted, true);
+
+  for (const table of ["requirements", "sources", "positions", "papers", "issues", "notifications", "deadline_changes"]) {
+    const column = table === "requirements" ? "id" : "requirement_id";
+    assert.equal(Number((await sql(`select count(*) n from training.${table} where ${column}=$1`, [rid]))[0].n), 0, table);
+  }
+  const audit = (await sql("select actor,body from training.audit where action='requirement_deleted' and body->>'requirement_id'=$1", [rid]))[0];
+  assert.equal(audit.actor, eid(1));
+  assert.equal(audit.body.reason, "清除測試資料");
+});
 test.after(async () => {
   await db.close();
 });

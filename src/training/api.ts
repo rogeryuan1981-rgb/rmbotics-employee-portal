@@ -49,6 +49,11 @@ export async function courseSyncApi<T>(p: object): Promise<T> {
   if (error) throw new PortalApiError(error.message, error.code);
   return data as T;
 }
+export async function deleteTrainingRequirement(p: { id: string; reason: string }) {
+  const { data, error } = await supabase.rpc("training_delete_requirement", { p });
+  if (error) throw new PortalApiError(error.message, error.code);
+  return data as { deleted: boolean; id: string };
+}
 export function dateTime(s: string | null | undefined) {
   return s
     ? new Date(s).toLocaleString("zh-TW", {
