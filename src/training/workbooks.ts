@@ -31,23 +31,23 @@ export async function importTemplate() {
   const Excel = await library();
   const wb = new Excel.Workbook();
   const ws = wb.addWorksheet("員工名冊");
-  ws.columns = importColumns.map(([key, header]) => ({
+  ws.columns = importColumns
+    .filter(([key]) => key !== "job" && key !== "tenure_date")
+    .map(([key, header]) => ({
     key,
     header,
     width: 24,
-  }));
+    }));
   ws.addRow({
     name: "範例員工（請刪除此列）",
     email: "sample@example.test",
     hire_date: "2026-01-01",
     department: "請填既有部門名稱",
-    job: "請填已發布職務名稱",
-    tenure_date: "2026-01-01",
     active: "true",
     systems: "training",
   });
   ws.getRow(1).font = { bold: true };
-  await download(wb, "員工名冊匯入範本.xlsx");
+  await download(wb, "人員與登入匯入範本.xlsx");
 }
 export async function readImport(file: File) {
   const Excel = await library();

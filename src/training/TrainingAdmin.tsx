@@ -995,7 +995,7 @@ function RosterImport({ onDone }: { onDone: () => Promise<void> }) {
   return (
     <section className="panel">
       <h2>Excel 整批匯入</h2>
-      <p>以 Email 比對。空白不覆寫；有任一錯誤即不開放整批提交。</p>
+      <p>只匯入入口登入與組織資料，以 Email 比對；空白不覆寫，有任一錯誤即不開放整批提交。</p>
       <button onClick={() => void importTemplate()}>下載 Excel 範本</button>
       <fieldset>
         <legend>允許更新欄位（變更後須重新選檔預覽）</legend>
@@ -1003,7 +1003,6 @@ function RosterImport({ onDone }: { onDone: () => Promise<void> }) {
           ["name", "姓名"],
           ["department", "部門"],
           ["hire_date", "到職日"],
-          ["job", "職務與接任日"],
           ["active", "啟用狀態"],
           ["systems", "系統資格"],
         ].map(([key, label]) => (
