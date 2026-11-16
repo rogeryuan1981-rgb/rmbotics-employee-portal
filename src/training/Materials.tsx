@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import type { Material } from "./types";
+import { readMaterialPdf } from "./api";
+import { validatePdfUrl } from "./pdf-files";
 GlobalWorkerOptions.workerSrc = worker;
 type Player = {
   destroy(): void;
@@ -50,6 +52,7 @@ export function Materials({
   const [pages, setPages] = useState(1);
   const state = useRef(onState);
   const pos = useRef(onPosition);
+  const storedPdf = useRef<{ content: string; bytes: Uint8Array } | null>(null);
   state.current = onState;
   pos.current = onPosition;
   useEffect(() => {
@@ -103,10 +106,23 @@ export function Materials({
     if (material.kind !== "pdf") return;
     let cancelled = false;
     state.current(false, false);
-    const task = getDocument({ url: material.content, isEvalSupported: false });
-    void task.promise
+    let task: ReturnType<typeof getDocument> | undefined;
+    async function load() {
+      validatePdfUrl(material.content);
+      let bytes = storedPdf.current?.content === material.content ? storedPdf.current.bytes : null;
+      if (!bytes) {
+        bytes = await readMaterialPdf(material.content);
+        if (bytes && !cancelled) storedPdf.current = { content: material.content, bytes };
+      }
+      if (cancelled) return null;
+      task = getDocument(bytes
+        ? { data: new Uint8Array(bytes), isEvalSupported: false }
+        : { url: material.content, isEvalSupported: false });
+      return task.promise;
+    }
+    void load()
       .then(async (pdf) => {
-        if (cancelled) return;
+        if (cancelled || !pdf) return;
         setPages(pdf.numPages);
         const pn = Math.min(page, pdf.numPages);
         const p = await pdf.getPage(pn);
@@ -121,17 +137,19 @@ export function Materials({
           pos.current(pn);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!cancelled)
           state.current(
             false,
             false,
-            "PDF 無法載入；請確認檔案與跨來源讀取設定後重試或回報。",
+            error instanceof Error && error.message.includes("OneDrive")
+              ? error.message
+              : "PDF 無法載入，請聯絡管理員確認檔案，或改以上傳 PDF 的方式提供教材。",
           );
       });
     return () => {
       cancelled = true;
-      void task.destroy();
+      void task?.destroy();
     };
   }, [material.id, material.content, page, material.kind]);
   if (material.kind === "text")

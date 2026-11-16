@@ -9,7 +9,8 @@ import type {
   Question,
   Material,
 } from "./types";
-import { api, courseSyncApi, materialApi, youtubeId } from "./api";
+import { api, courseSyncApi, materialApi, uploadMaterialPdf, youtubeId } from "./api";
+import { validatePdfUrl } from "./pdf-files";
 export const defaultDeadline: Deadline = {
   mode: "assigned",
   days: 30,
@@ -162,26 +163,40 @@ export function MaterialLibrary({materials,done}:{materials:Material[];done:()=>
   const [editing,setEditing]=useState<Material|null>(null);
   const [draft,setDraft]=useState<Material>({id:"",title:"",kind:"text",content:"",active:true});
   const [message,setMessage]=useState("");
-  const edit=(m?:Material)=>{const next=m||{id:"",title:"",kind:"text" as const,content:"",active:true};setEditing(next);setDraft({...next});setMessage("");};
-  async function save(){
+  const [uploading,setUploading]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [fileName,setFileName]=useState("");
+  const edit=(m?:Material)=>{if(uploading||saving)return;const next=m||{id:"",title:"",kind:"text" as const,content:"",active:true};setEditing(next);setDraft({...next});setMessage("");setFileName("");};
+  async function upload(file:File){
+    setUploading(true);setMessage("");
     try{
-      const content=draft.kind==="youtube"?youtubeId(draft.content):draft.content;
+      const id=draft.id||crypto.randomUUID();
+      const content=await uploadMaterialPdf(id,file);
+      setDraft(current=>({...current,id,content}));setFileName(file.name);
+      setMessage("PDF 已上傳，請按「儲存教材」完成設定。");
+    }catch(e){setMessage((e as Error).message);}finally{setUploading(false);}
+  }
+  async function save(){
+    setSaving(true);setMessage("");
+    try{
+      const content=draft.kind==="youtube"?youtubeId(draft.content):draft.kind==="pdf"?validatePdfUrl(draft.content):draft.content;
       await materialApi("save",{id:draft.id,title:draft.title,kind:draft.kind,content,summary:draft.id?"更新教材":"建立教材"});
       setMessage("教材已儲存，可供多個課程引用。");setEditing(null);await done();
-    }catch(e){setMessage((e as Error).message);}
+    }catch(e){setMessage((e as Error).message);}finally{setSaving(false);}
   }
   return <>
     <section className="workflow-intro"><span>獨立資產</span><h2>教材庫</h2><p>教材可先建立、單獨維護並重複用於多個課程；停用教材不會改寫已發布課程的歷史快照。</p></section>
-    <div className="button-row"><button className="primary" onClick={()=>edit()}>新增教材</button></div>
+    <div className="button-row"><button className="primary" disabled={uploading||saving} onClick={()=>edit()}>新增教材</button></div>
     <div className="course-grid material-library-grid">{materials.map(m=><article className="course-card" key={m.id}>
       <span className="badge">{m.active===false?"已停用":m.kind==="text"?"網頁文字":m.kind==="pdf"?"PDF":"YouTube"}</span>
       <h2>{m.title}</h2><p>版本 {m.revision||1} · 可獨立使用</p>
-      <div className="button-row"><button onClick={()=>edit(m)}>編輯教材</button><button onClick={async()=>{await materialApi("set_active",{id:m.id,active:m.active===false});await done();}}>{m.active===false?"重新啟用":"停用"}</button></div>
+      <div className="button-row"><button disabled={uploading||saving} onClick={()=>edit(m)}>編輯教材</button><button disabled={uploading||saving} onClick={async()=>{await materialApi("set_active",{id:m.id,active:m.active===false});await done();}}>{m.active===false?"重新啟用":"停用"}</button></div>
     </article>)}</div>
     {editing&&<section className="panel focused-editor"><p className="eyebrow">MATERIAL ASSET</p><h2>{draft.id?"編輯教材":"新增教材"}</h2>
-      <div className="form-grid"><label>教材名稱<input value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label><label>教材類型<select value={draft.kind} onChange={e=>setDraft({...draft,kind:e.target.value as Material["kind"],content:""})}><option value="text">網頁文字</option><option value="pdf">PDF</option><option value="youtube">YouTube</option></select></label></div>
-      <label>{draft.kind==="text"?"教材內容":draft.kind==="pdf"?"PDF HTTPS 網址":"YouTube 網址或 11 碼識別碼"}<textarea rows={draft.kind==="text"?10:3} value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>
-      <div className="button-row"><button onClick={()=>setEditing(null)}>取消</button><button className="primary" disabled={!draft.title.trim()||!draft.content.trim()} onClick={()=>void save()}>儲存教材</button></div>{message&&<p role="status">{message}</p>}
+      <div className="form-grid"><label>教材名稱<input disabled={uploading||saving} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label><label>教材類型<select disabled={uploading||saving} value={draft.kind} onChange={e=>{setDraft({...draft,kind:e.target.value as Material["kind"],content:""});setFileName("");setMessage("");}}><option value="text">網頁文字</option><option value="pdf">PDF</option><option value="youtube">YouTube</option></select></label></div>
+      {draft.kind==="pdf"&&<label>上傳 PDF（上限 20 MB）<input type="file" accept=".pdf,application/pdf" disabled={uploading||saving} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void upload(file);}}/>{fileName&&<span>{fileName}</span>}{uploading&&<span>PDF 上傳中…</span>}</label>}
+      <label>{draft.kind==="text"?"教材內容":draft.kind==="pdf"?"PDF 檔案網址（上傳後自動填入，也可填外部 PDF 直連網址）":"YouTube 網址或 11 碼識別碼"}<textarea disabled={uploading||saving} rows={draft.kind==="text"?10:3} value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>
+      <div className="button-row"><button disabled={uploading||saving} onClick={()=>setEditing(null)}>取消</button><button className="primary" disabled={uploading||saving||!draft.title.trim()||!draft.content.trim()} onClick={()=>void save()}>{saving?"儲存中…":"儲存教材"}</button></div>{message&&<p role="status">{message}</p>}
     </section>}
   </>;
 }

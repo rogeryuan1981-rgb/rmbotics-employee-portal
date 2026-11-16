@@ -1,4 +1,5 @@
-import { supabase } from "../lib/supabase";
+import { supabase, supabaseUrl } from "../lib/supabase";
+import { materialBucket, materialFilePath, validatePdfFile } from "./pdf-files";
 export class PortalApiError extends Error {
   constructor(
     message: string,
@@ -16,6 +17,22 @@ export async function materialApi<T>(action: string, p: object = {}): Promise<T>
   const { data, error } = await supabase.rpc("training_material_rpc", { action, p });
   if (error) throw new PortalApiError(error.message, error.code);
   return data as T;
+}
+export async function uploadMaterialPdf(materialId: string, file: File) {
+  await validatePdfFile(file);
+  const objectPath = `${materialId}/${crypto.randomUUID()}.pdf`;
+  const { error } = await supabase.storage.from(materialBucket).upload(objectPath, file, {
+    contentType: "application/pdf", upsert: false,
+  });
+  if (error) throw new PortalApiError(`PDF 上傳失敗：${error.message}`, "storage");
+  return `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/authenticated/${materialBucket}/${objectPath}`;
+}
+export async function readMaterialPdf(content: string) {
+  const objectPath = materialFilePath(content, supabaseUrl);
+  if (!objectPath) return null;
+  const { data, error } = await supabase.storage.from(materialBucket).download(objectPath);
+  if (error) throw new PortalApiError("PDF 無法讀取，請確認課程指派及檔案權限。", "storage");
+  return new Uint8Array(await data.arrayBuffer());
 }
 export async function organizationApi<T>(action: string, p: object = {}): Promise<T> {
   const { data, error } = await supabase.rpc("portal_organization_rpc", { action, p });
