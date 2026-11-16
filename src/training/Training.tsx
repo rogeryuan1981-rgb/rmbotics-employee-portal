@@ -121,6 +121,8 @@ export function Training({ route }: { route: string }) {
                 ? "新增訓練"
                 : n.kind === "retrain"
                   ? "重新受訓"
+                  : n.kind === "course_updated"
+                    ? "課程內容已更新"
                   : n.kind === "due"
                     ? "即將到期"
                     : "逾期提醒"}

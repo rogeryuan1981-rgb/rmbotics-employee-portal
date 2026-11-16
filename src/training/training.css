@@ -555,6 +555,7 @@
 .publish-checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:22px}
 .publish-checklist p{display:flex;align-items:center;gap:10px;margin:0;padding:14px;border-radius:9px;border:1px solid var(--line);background:#fff}
 .publish-checklist .ready{color:#267858;border-color:#bcdccb;background:#f0faf5}.publish-checklist .pending{color:#9a6219;border-color:#ead2aa;background:#fff8ea}
+.sync-existing-option{display:flex!important;align-items:flex-start;gap:12px;margin-top:20px!important;margin-bottom:20px!important;padding:16px;border:1px solid #e2c487;border-radius:10px;background:#fff8e9}.sync-existing-option input{margin-top:4px;accent-color:#4b63e8}.sync-existing-option span{display:flex;flex-direction:column;gap:4px}.sync-existing-option small{color:#765b2b;line-height:1.5}
 @media(max-width:760px){
   .portal-header{padding:14px 16px}.portal-header nav span{margin-left:0;padding-left:0;border:0}
   .portal-welcome{align-items:flex-start;flex-direction:column;padding-bottom:30px}.portal-welcome h1{font-size:2.4rem}

@@ -9,7 +9,7 @@ import type {
   Question,
   Material,
 } from "./types";
-import { api, materialApi, youtubeId } from "./api";
+import { api, courseSyncApi, materialApi, youtubeId } from "./api";
 export const defaultDeadline: Deadline = {
   mode: "assigned",
   days: 30,
@@ -196,6 +196,7 @@ export function CourseEditor({course,materials,departments,done}:{course:Course|
   const [summary, setSummary] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [syncExisting, setSyncExisting] = useState(false);
   const patch = (v: Partial<CourseDraft>) =>
     setValue((c) => ({ ...c, ...v }));
   async function save(publish = false) {
@@ -204,9 +205,17 @@ export function CourseEditor({course,materials,departments,done}:{course:Course|
     try {
       const c = await api<{ id: string }>("course_save", { id, content:value });
       setId(c.id);
-      if (publish) await api("course_publish", { id: c.id, summary });
+      let syncResult:{affected:number;reset_papers:number}|null=null;
+      if (publish) {
+        await api("course_publish", { id: c.id, summary });
+        if (syncExisting) syncResult=await courseSyncApi<{affected:number;reset_papers:number}>({course_id:c.id});
+      }
       setMessage(
-        publish ? "已發布；既有要求保留原時數與進度。" : "草稿已儲存。",
+        publish
+          ? syncResult
+            ? `已發布並同步 ${syncResult.affected} 位未完成人員；保留進度與期限，重建 ${syncResult.reset_papers} 份未繳交試卷。`
+            : "已發布；既有人員維持原要求時數，教材與題庫顯示最新發布內容。"
+          : "草稿已儲存。",
       );
       done();
     } catch (e) {
@@ -438,6 +447,21 @@ export function CourseEditor({course,materials,departments,done}:{course:Course|
         發布摘要
         <input value={summary} onChange={(e) => setSummary(e.target.value)} />
       </label>
+      {course?.published && (
+        <label className="sync-existing-option">
+          <input
+            type="checkbox"
+            checked={syncExisting}
+            onChange={(e) => setSyncExisting(e.target.checked)}
+          />
+          <span>
+            <strong>同步至既有未完成人員</strong>
+            <small>
+              更新要求時數與版本；保留學習進度和截止日。未繳交的舊試卷會重建，已完成紀錄不變。
+            </small>
+          </span>
+        </label>
+      )}
       <div className="button-row">
         <button disabled={busy} onClick={() => void save()}>
           儲存草稿
@@ -447,7 +471,7 @@ export function CourseEditor({course,materials,departments,done}:{course:Course|
           disabled={busy || !summary.trim() || checks.some(([ok])=>!ok)}
           onClick={() => void save(true)}
         >
-          發布／僅更新內容
+          {syncExisting ? "發布並同步既有人員" : "發布／僅更新內容"}
         </button>
       </div></>}
       <p role="status">{message}</p>

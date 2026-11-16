@@ -17,6 +17,11 @@ export async function materialApi<T>(action: string, p: object = {}): Promise<T>
   if (error) throw new PortalApiError(error.message, error.code);
   return data as T;
 }
+export async function courseSyncApi<T>(p: object): Promise<T> {
+  const { data, error } = await supabase.rpc("training_course_sync_rpc", { p });
+  if (error) throw new PortalApiError(error.message, error.code);
+  return data as T;
+}
 export function dateTime(s: string | null | undefined) {
   return s
     ? new Date(s).toLocaleString("zh-TW", {
