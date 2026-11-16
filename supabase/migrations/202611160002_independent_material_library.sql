@@ -50,18 +50,18 @@ language sql stable security definer set search_path=pg_catalog,public,training 
  else c end
 $$;
 
-create or replace function training.assert_course(input jsonb) returns void language plpgsql stable security definer set search_path=pg_catalog,public,training as $$
-declare c jsonb=training.materialize_course(input);m jsonb;q jsonb;n int;ids text[]='{}';
+create or replace function training.assert_course(c jsonb) returns void language plpgsql stable security definer set search_path=pg_catalog,public,training as $$
+declare course_data jsonb=training.materialize_course(c);m jsonb;q jsonb;n int;ids text[]='{}';
 begin
- if not(c ?& array['title','seconds','pass_score','question_count','materials','questions']) then raise exception '課程設定不完整';end if;
- if coalesce(length(btrim(c->>'title')),0)=0 then raise exception '請填課程名稱';end if;
- if (c->>'seconds')::numeric<=0 or (c->>'seconds')::numeric>31536000 then raise exception '學習秒數須大於零';end if;
- if (c->>'pass_score')::numeric<0 or (c->>'pass_score')::numeric>100 then raise exception '及格分數須為 0 至 100';end if;
- if (c->>'question_count')::int<1 or (c->>'question_count')::int>jsonb_array_length(c->'questions') then raise exception '可用題數不足';end if;
- if coalesce((c->>'minutes')::numeric,0)<0 then raise exception '測驗限時不可為負';end if;
- if nullif(c->>'end','') is not null and nullif(c->>'start','') is not null and (c->>'end')::timestamptz<=(c->>'start')::timestamptz then raise exception '結束時間須晚於開始時間';end if;
- if jsonb_array_length(c->'materials')<1 then raise exception '請至少引用一份啟用中的教材';end if;
- for m in select value from jsonb_array_elements(c->'materials') loop
+ if not(course_data ?& array['title','seconds','pass_score','question_count','materials','questions']) then raise exception '課程設定不完整';end if;
+ if coalesce(length(btrim(course_data->>'title')),0)=0 then raise exception '請填課程名稱';end if;
+ if (course_data->>'seconds')::numeric<=0 or (course_data->>'seconds')::numeric>31536000 then raise exception '學習秒數須大於零';end if;
+ if (course_data->>'pass_score')::numeric<0 or (course_data->>'pass_score')::numeric>100 then raise exception '及格分數須為 0 至 100';end if;
+ if (course_data->>'question_count')::int<1 or (course_data->>'question_count')::int>jsonb_array_length(course_data->'questions') then raise exception '可用題數不足';end if;
+ if coalesce((course_data->>'minutes')::numeric,0)<0 then raise exception '測驗限時不可為負';end if;
+ if nullif(course_data->>'end','') is not null and nullif(course_data->>'start','') is not null and (course_data->>'end')::timestamptz<=(course_data->>'start')::timestamptz then raise exception '結束時間須晚於開始時間';end if;
+ if jsonb_array_length(course_data->'materials')<1 then raise exception '請至少引用一份啟用中的教材';end if;
+ for m in select value from jsonb_array_elements(course_data->'materials') loop
   if coalesce(m->>'id','')='' or m->>'id'=any(ids) then raise exception '教材識別碼須唯一';end if;ids=array_append(ids,m->>'id');
   if coalesce(btrim(m->>'title'),'')='' then raise exception '教材名稱不可空白';end if;
   if m->>'kind' not in ('text','pdf','youtube') then raise exception '教材類型錯誤';end if;
@@ -69,14 +69,14 @@ begin
   if m->>'kind'='pdf' and coalesce(m->>'content','')!~'^https://' then raise exception 'PDF 須為 HTTPS 連結';end if;
  end loop;
  ids='{}';
- for q in select value from jsonb_array_elements(c->'questions') loop
+ for q in select value from jsonb_array_elements(course_data->'questions') loop
   if coalesce(q->>'id','')='' or q->>'id'=any(ids) then raise exception '題目識別碼須唯一';end if;ids=array_append(ids,q->>'id');
   if coalesce(q->>'prompt','')='' or q->>'kind' not in ('single','multiple','boolean') then raise exception '題目內容或題型錯誤';end if;
   n=jsonb_array_length(q->'options');
   if n<2 or jsonb_array_length(q->'correct')<1 or (q->>'kind'<>'multiple' and jsonb_array_length(q->'correct')<>1) then raise exception '選項或答案不完整';end if;
   if q->>'kind'='boolean' and n<>2 then raise exception '是非題須有兩個選項';end if;
   if exists(select 1 from jsonb_array_elements_text(q->'correct') x where x::int<0 or x::int>=n) or (select count(distinct value)<>count(*) from jsonb_array_elements(q->'correct')) then raise exception '正確答案索引錯誤';end if;
-  if not exists(select 1 from jsonb_array_elements(c->'materials') x where x->>'id'=q->>'material_id') then raise exception '每題須對應已引用的教材';end if;
+  if not exists(select 1 from jsonb_array_elements(course_data->'materials') x where x->>'id'=q->>'material_id') then raise exception '每題須對應已引用的教材';end if;
  end loop;
 end $$;
 
