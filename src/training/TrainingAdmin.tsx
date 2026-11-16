@@ -43,7 +43,13 @@ export function TrainingAdmin({
 }) {
   const platform = scope === "platform";
   const [data, setData] = useState<AdminData | null>(null);
-  const [tab, setTab] = useState<Tab>(platform ? "people" : "overview");
+  const [tab, setTab] = useState<Tab>(
+    platform
+      ? context.grants.some((g) => g.system_code === "training" && g.role === "admin")
+        ? "organization"
+        : "people"
+      : "overview",
+  );
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<
     | { kind: "course"; item: Course | null }
@@ -110,11 +116,11 @@ export function TrainingAdmin({
       </p>
       {platform ? (
         <section className="platform-sequence" aria-label="入口設定順序">
-          <span><b>1</b> 建立人員</span>
+          <span><b>1</b> 建立組織</span>
           <i>→</i>
-          <span><b>2</b> 設定組織</span>
+          <span><b>2</b> 建立人員與選擇單位</span>
           <i>→</i>
-          <span><b>3</b> 開通應用</span>
+          <span><b>3</b> 設定應用與權限</span>
         </section>
       ) : (
         people && (
@@ -127,8 +133,8 @@ export function TrainingAdmin({
         {(
           (platform
             ? [
-                ...(people ? [["people", "人員與登入"]] : []),
                 ...(admin ? [["organization", "組織設定"]] : []),
+                ...(people ? [["people", "人員與登入"]] : []),
                 ...(admin ? [["access", "應用與權限"]] : []),
               ]
             : [
@@ -1458,25 +1464,36 @@ function Permissions({
   const [role, setRole] = useState("manager");
   const [deps, setDeps] = useState<string[]>([]);
   const [all, setAll] = useState(false);
+  const [query, setQuery] = useState("");
+  const filteredPeople = data.employees.filter((person) =>
+    `${person.name} ${person.email}`.toLocaleLowerCase("zh-TW").includes(query.trim().toLocaleLowerCase("zh-TW")),
+  );
+  const selectedPerson = data.employees.find((person) => person.id === employee);
   return (
     <section className="panel">
       <h2>獨立系統角色與部門範圍</h2>
-      <p>零食管理員不會自動取得訓練管理員。可同時兼任主管與 HR。</p>
-      <label>
-        員工
-        <select value={employee} onChange={(e) => setEmployee(e.target.value)}>
-          <option value="">請選擇</option>
-          {data.employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="form-grid">
+      <p>先從左側選擇人員，再設定該人員的系統角色與管理範圍。</p>
+      <div className="people-directory-layout permission-directory-layout">
+        <aside className="people-directory-sidebar">
+          <label className="people-search">搜尋人員
+            <input type="search" value={query} placeholder="姓名或 Email" onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          <nav className="people-list" aria-label="權限設定人員清單">
+            {filteredPeople.map((person) => <button key={person.id} className={employee === person.id ? "selected" : ""} onClick={() => { setEmployee(person.id); setDeps([]); setAll(false); }}>
+              <span><strong>{person.name}</strong><small>{person.email}</small></span>
+              <em className={person.active ? "active" : "inactive"}>{person.active ? "啟用" : "停用"}</em>
+            </button>)}
+            {!filteredPeople.length && <p>找不到符合的人員。</p>}
+          </nav>
+        </aside>
+        <div className="people-editor permission-editor">
+          <div className="people-editor-heading"><div><small>ACCESS PROFILE</small><h3>{selectedPerson ? `設定 ${selectedPerson.name} 的權限` : "請先選擇人員"}</h3></div></div>
+          <fieldset disabled={!employee}>
+            <legend>新增角色授權</legend>
+            <div className="form-grid">
         <label>
           系統
-          <select value={system} onChange={(e) => setSystem(e.target.value)}>
+          <select value={system} onChange={(e) => { const code=e.target.value; setSystem(code); if(code==="snack-vote"){ setRole("admin"); setAll(true); } }}>
             {data.systems.map((s) => (
               <option key={s.code} value={s.code}>
                 {s.name}
@@ -1486,9 +1503,9 @@ function Permissions({
         </label>
         <label>
           角色
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="manager">部門訓練主管</option>
-            <option value="hr">HR</option>
+          <select value={role} onChange={(e) => { const next=e.target.value; setRole(next); if(next==="admin") setAll(true); }}>
+            {system === "training" && <option value="manager">部門訓練主管</option>}
+            {system === "training" && <option value="hr">HR</option>}
             <option value="admin">後臺管理員</option>
           </select>
         </label>
@@ -1497,6 +1514,7 @@ function Permissions({
         <input
           type="checkbox"
           checked={all}
+          disabled={role === "admin"}
           onChange={(e) => setAll(e.target.checked)}
         />
         全公司範圍（管理員須勾選）
@@ -1541,7 +1559,10 @@ function Permissions({
       >
         新增角色授權
       </button>
-      {data.grants.map((g) => (
+          </fieldset>
+          <h3>此人員目前的角色</h3>
+          {!employee && <p>選擇人員後顯示。</p>}
+      {data.grants.filter((g) => g.employee_id === employee).map((g) => (
         <div className="history-row" key={g.id}>
           <span>
             {data.employees.find((e) => e.id === g.employee_id)?.name} ·{" "}
@@ -1560,6 +1581,9 @@ function Permissions({
           </button>
         </div>
       ))}
+          {employee && !data.grants.some((g) => g.employee_id === employee) && <p>目前沒有管理角色；一般系統使用資格請在人員主檔設定。</p>}
+        </div>
+      </div>
     </section>
   );
 }
