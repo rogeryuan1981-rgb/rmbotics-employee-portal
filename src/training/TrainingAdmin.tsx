@@ -27,6 +27,7 @@ type Tab =
   | "people"
   | "organization"
   | "access"
+  | "systems"
   | "jobs"
   | "courses"
   | "materials"
@@ -118,9 +119,9 @@ export function TrainingAdmin({
         <section className="platform-sequence" aria-label="入口設定順序">
           <span><b>1</b> 建立組織</span>
           <i>→</i>
-          <span><b>2</b> 建立人員與選擇單位</span>
+          <span><b>2</b> 建立人員與設定完整權限</span>
           <i>→</i>
-          <span><b>3</b> 設定應用與權限</span>
+          <span><b>3</b> 維護系統目錄</span>
         </section>
       ) : (
         people && (
@@ -134,8 +135,8 @@ export function TrainingAdmin({
           (platform
             ? [
                 ...(admin ? [["organization", "組織設定"]] : []),
-                ...(people ? [["people", "人員與登入"]] : []),
-                ...(admin ? [["access", "應用與權限"]] : []),
+                ...(people ? [["people", "人員與權限"]] : []),
+                ...(admin ? [["systems", "系統設定"]] : []),
               ]
             : [
                 ["overview", "訓練總覽"],
@@ -248,6 +249,7 @@ export function TrainingAdmin({
           <People
             data={data}
             admin={admin}
+            onGrant={act}
             onSave={async (p, adminSystems) => {
               setError("");
               try {
@@ -269,21 +271,11 @@ export function TrainingAdmin({
       {tab === "organization" && platform && admin && (
         <OrganizationSettings departments={data.departments} employees={data.employees} onSaved={load} />
       )}
-      {tab === "access" && platform && admin && (
-        <>
-          <Permissions
-            data={data}
-            onSave={act}
-            onAccessSave={async (p) => {
-              await accessProfileApi("save", p);
-              await load();
-            }}
-          />
-          <SystemSettings
-            systems={data.systems}
-            onSave={(p) => act("system", p)}
-          />
-        </>
+      {tab === "systems" && platform && admin && (
+        <SystemSettings
+          systems={data.systems}
+          onSave={(p) => act("system", p)}
+        />
       )}
       {tab === "materials" && admin && (
         <MaterialLibrary materials={data.materials} done={load} />
@@ -707,10 +699,12 @@ function People({
   data,
   admin,
   onSave,
+  onGrant,
 }: {
   data: AdminData;
   admin: boolean;
   onSave: (p: Person, adminSystems: string[]) => Promise<void>;
+  onGrant: (action: string, p: object) => Promise<void>;
 }) {
   const empty: Person = {
     id: "",
@@ -734,8 +728,8 @@ function People({
   return (
     <section className="panel">
       <p className="eyebrow">SHARED PEOPLE DIRECTORY</p>
-      <h2>共用人員主檔</h2>
-      <p>人員只建立一次，供單一入口登入與各應用沿用；此處不維護課程或零食活動資料。</p>
+      <h2>共用人員與權限</h2>
+      <p>在同一份人員資料中完成登入資料、組織歸屬、系統資格及管理範圍設定。</p>
       <div className="people-directory-layout">
         <aside className="people-directory-sidebar">
           <button className="primary new-person-button" onClick={() => { setP(empty); setAdminSystems([]); }}>
@@ -843,8 +837,8 @@ function People({
             <legend>應用與管理權限</legend>
             <p>一次設定入口顯示與系統管理權限；授予管理權限時會自動開通該系統。</p>
             {admin && <div className="access-presets">
-              <button type="button" onClick={() => { const codes=data.systems.filter((system)=>system.enabled).map((system)=>system.code); patch({systems:codes}); setAdminSystems([]); }}>開通兩套系統</button>
-              <button type="button" className="primary" onClick={() => { const codes=data.systems.filter((system)=>system.enabled).map((system)=>system.code); patch({systems:codes}); setAdminSystems(codes); }}>兩套系統全功能管理</button>
+              <button type="button" onClick={() => { const codes=data.systems.filter((system)=>system.enabled).map((system)=>system.code); patch({systems:codes}); setAdminSystems([]); }}>開通所有系統</button>
+              <button type="button" className="primary" onClick={() => { const codes=data.systems.filter((system)=>system.enabled).map((system)=>system.code); patch({systems:codes}); setAdminSystems(codes); }}>授予所有系統管理權限</button>
               <button type="button" onClick={() => { patch({systems:[]}); setAdminSystems([]); }}>清除全部資格</button>
             </div>}
             <div className="access-system-grid">
@@ -865,8 +859,9 @@ function People({
                 </article>;
               })}
             </div>
-            <small>部門主管與 HR 的限定範圍仍可在「應用與權限」進階設定。</small>
+            <small>一般使用者與全功能管理員在此設定；部門主管及 HR 範圍也在下方同一頁完成。</small>
           </fieldset>
+          <ScopedPermissions person={p} data={data} onSave={onGrant} />
           <button
             className="primary"
             onClick={() =>
@@ -882,6 +877,39 @@ function People({
       </div>
     </section>
   );
+}
+function ScopedPermissions({
+  person,
+  data,
+  onSave,
+}: {
+  person: Person;
+  data: AdminData;
+  onSave: (action: string, p: object) => Promise<void>;
+}) {
+  const [role, setRole] = useState<"manager" | "hr">("manager");
+  const [deps, setDeps] = useState<string[]>([]);
+  const [all, setAll] = useState(false);
+  const grants = data.grants.filter((grant) => grant.employee_id === person.id);
+  return <fieldset className="scoped-permissions" disabled={!person.id}>
+    <legend>主管／HR 管理範圍</legend>
+    {!person.id && <p>請先儲存人員基本資料，再設定管理範圍。</p>}
+    {person.id && <>
+      <div className="form-grid">
+        <label>角色<select value={role} onChange={(e) => setRole(e.target.value as "manager" | "hr")}><option value="manager">部門訓練主管</option><option value="hr">HR</option></select></label>
+        <label className="check"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />全公司範圍</label>
+      </div>
+      {!all && departmentTree(data.departments).map(({department,depth}) => <label className="check" key={department.id}><input type="checkbox" checked={deps.includes(department.id)} onChange={(e) => setDeps(e.target.checked ? [...deps,department.id] : deps.filter((id) => id !== department.id))} />{`${"— ".repeat(depth)}${department.name}`}（含下層）</label>)}
+      <button disabled={!all && !deps.length} onClick={async () => {
+        if(all) await onSave("grant",{employee_id:person.id,system_code:"training",role,all_departments:true});
+        else for(const departmentId of deps) await onSave("grant",{employee_id:person.id,system_code:"training",role,department_id:departmentId,all_departments:false});
+      }}>新增主管／HR 權限</button>
+      <h3>目前完整權限</h3>
+      {person.systems.filter((code) => !grants.some((grant) => grant.system_code === code)).map((code) => <div className="history-row" key={`user-${code}`}><span>{data.systems.find((system) => system.code === code)?.name || code} · 一般使用者</span></div>)}
+      {grants.map((grant) => <div className="history-row" key={grant.id}><span>{data.systems.find((system) => system.code === grant.system_code)?.name || grant.system_code} · {grant.role === "admin" ? "系統管理員" : grant.role === "hr" ? "HR" : "部門主管"} · {grant.all_departments ? "全公司" : data.departments.find((department) => department.id === grant.department_id)?.name}</span><button onClick={() => { if(confirm("移除此管理權限？")) void onSave("grant",{id:grant.id,delete:true}); }}>移除</button></div>)}
+      {!person.systems.length && !grants.length && <p>尚未設定任何系統資格。</p>}
+    </>}
+  </fieldset>;
 }
 function JobTenures({
   data,
