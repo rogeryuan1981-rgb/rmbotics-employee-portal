@@ -535,119 +535,159 @@ function People({
     tenures: [],
   };
   const [p, setP] = useState<Person>(empty);
+  const [query, setQuery] = useState("");
   const patch = (v: Partial<Person>) => setP((p) => ({ ...p, ...v }));
+  const filteredPeople = data.employees.filter((employee) =>
+    `${employee.name} ${employee.email}`
+      .toLocaleLowerCase("zh-TW")
+      .includes(query.trim().toLocaleLowerCase("zh-TW")),
+  );
   return (
     <section className="panel">
       <p className="eyebrow">SHARED PEOPLE DIRECTORY</p>
       <h2>共用人員主檔</h2>
       <p>人員只建立一次，供單一入口登入與各應用沿用；此處不維護課程或零食活動資料。</p>
-      <div className="button-row">
-        <select
-          aria-label="選擇員工"
-          value={p.id}
-          onChange={(e) =>
-            setP(data.employees.find((p) => p.id === e.target.value) || empty)
-          }
-        >
-          <option value="">新增員工</option>
-          {data.employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name} · {e.email}
-              {e.active ? "" : "（停用）"}
-            </option>
-          ))}
-        </select>
-        <button onClick={() => setP(empty)}>清空新增</button>
-      </div>
-      <div className="form-grid">
-        <label>
-          姓名
-          <input
-            required
-            value={p.name}
-            onChange={(e) => patch({ name: e.target.value })}
-          />
-        </label>
-        <label>
-          Email
-          <input
-            type="email"
-            value={p.email}
-            onChange={(e) => patch({ email: e.target.value })}
-          />
-        </label>
-        <label>
-          到職日
-          <input
-            type="date"
-            value={p.hire_date || ""}
-            onChange={(e) => patch({ hire_date: e.target.value })}
-          />
-        </label>
-        <label>
-          部門
-          <select
-            value={p.department_id || ""}
-            onChange={(e) => patch({ department_id: e.target.value })}
-          >
-            <option value="">請選擇</option>
-            {data.departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
+      <div className="people-directory-layout">
+        <aside className="people-directory-sidebar">
+          <button className="primary new-person-button" onClick={() => setP(empty)}>
+            ＋ 新增人員
+          </button>
+          <label className="people-search">
+            搜尋人員
+            <input
+              type="search"
+              value={query}
+              placeholder="姓名或 Email"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <nav className="people-list" aria-label="人員清單">
+            {filteredPeople.map((employee) => (
+              <button
+                key={employee.id}
+                className={p.id === employee.id ? "selected" : ""}
+                onClick={() => setP(employee)}
+              >
+                <span>
+                  <strong>{employee.name}</strong>
+                  <small>{employee.email}</small>
+                </span>
+                <em className={employee.active ? "active" : "inactive"}>
+                  {employee.active ? "啟用" : "停用"}
+                </em>
+              </button>
             ))}
-          </select>
-        </label>
-      </div>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={p.active}
-          onChange={(e) => patch({ active: e.target.checked })}
-        />
-        在職／啟用
-      </label>
-      {!p.active && (
-        <label>
-          停用原因
-          <input
-            value={p.inactive_reason || ""}
-            onChange={(e) => patch({ inactive_reason: e.target.value })}
-          />
-        </label>
-      )}
-      <fieldset>
-        <legend>應用使用資格（新增不自動開通）</legend>
-        {["training"].map((s) => (
-          <label className="check" key={s}>
+            {!filteredPeople.length && <p>找不到符合的人員。</p>}
+          </nav>
+        </aside>
+        <div className="people-editor">
+          <div className="people-editor-heading">
+            <div>
+              <small>{p.id ? "EDIT PERSON" : "NEW PERSON"}</small>
+              <h3>{p.id ? `編輯 ${p.name}` : "建立新人員"}</h3>
+            </div>
+            <span className={p.active ? "person-state active" : "person-state inactive"}>
+              {p.active ? "啟用中" : "已停用"}
+            </span>
+          </div>
+          <div className="form-grid">
+            <label>
+              姓名
+              <input
+                required
+                value={p.name}
+                onChange={(e) => patch({ name: e.target.value })}
+              />
+            </label>
+            <label>
+              Email
+              <input
+                type="email"
+                value={p.email}
+                onChange={(e) => patch({ email: e.target.value })}
+              />
+            </label>
+            <label>
+              到職日
+              <input
+                type="date"
+                value={p.hire_date || ""}
+                onChange={(e) => patch({ hire_date: e.target.value })}
+              />
+            </label>
+            <label>
+              部門
+              <select
+                value={p.department_id || ""}
+                onChange={(e) => patch({ department_id: e.target.value })}
+              >
+                <option value="">請選擇</option>
+                {data.departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="check">
             <input
               type="checkbox"
-              checked={p.systems.includes(s)}
-              onChange={(e) =>
-                patch({
-                  systems: e.target.checked
-                    ? [...p.systems, s]
-                    : p.systems.filter((x) => x !== s),
-                })
-              }
+              checked={p.active}
+              onChange={(e) => patch({ active: e.target.checked })}
             />
-            {
-              {
-                training: "教育訓練",
-              }[s] || data.systems.find((system) => system.code === s)?.name
-            }
+            在職／啟用
           </label>
-        ))}
-      </fieldset>
-      {admin && <p className="boundary-note">零食投票目前維持獨立管理；儲存此頁會保留既有零食資格，不會自動新增或移除。</p>}
-      <button
-        className="primary"
-        onClick={() =>
-          void onSave({ ...p, tenures: p.tenures.filter((t) => !t.end_date) })
-        }
-      >
-        儲存人員與登入資料
-      </button>
+          {!p.active && (
+            <label>
+              停用原因
+              <input
+                value={p.inactive_reason || ""}
+                onChange={(e) => patch({ inactive_reason: e.target.value })}
+              />
+            </label>
+          )}
+          <fieldset>
+            <legend>應用使用資格（新增不自動開通）</legend>
+            {["training"].map((s) => (
+              <label className="check" key={s}>
+                <input
+                  type="checkbox"
+                  checked={p.systems.includes(s)}
+                  onChange={(e) =>
+                    patch({
+                      systems: e.target.checked
+                        ? [...p.systems, s]
+                        : p.systems.filter((x) => x !== s),
+                    })
+                  }
+                />
+                {
+                  {
+                    training: "教育訓練",
+                  }[s] || data.systems.find((system) => system.code === s)?.name
+                }
+              </label>
+            ))}
+          </fieldset>
+          {admin && (
+            <p className="boundary-note">
+              零食投票目前維持獨立管理；儲存此頁會保留既有零食資格，不會自動新增或移除。
+            </p>
+          )}
+          <button
+            className="primary"
+            onClick={() =>
+              void onSave({
+                ...p,
+                tenures: p.tenures.filter((t) => !t.end_date),
+              })
+            }
+          >
+            儲存人員與登入資料
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
