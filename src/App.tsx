@@ -432,9 +432,9 @@ function Login() {
     const deviceControl = <button type="button" className={`shared-device ${shared ? "selected" : ""}`} role="switch" aria-checked={shared} onClick={() => setShared(x => !x)}><span>共用電腦</span><strong>{shared ? "已開啟" : "未開啟"}</strong><small>{shared ? "關閉全部分頁後清除登入；閒置 30 分鐘也會自動登出。" : "個人電腦會安全保留登入，之後可直接開啟使用。"}</small></button>;
     return <main className="auth-shell">
     <section className="auth-brand-panel">
-      <div className="brand"><span className="brand-mark">S</span><div><strong>員工共用入口</strong><small>教育訓練與零食投票</small></div></div>
-      <div className="auth-copy"><p className="section-kicker">EMPLOYEE PORTAL</p><h1>一次登入，<br />接續每天的工作。</h1><p>完成教育訓練、參與零食投票。使用同一個員工身分，切換系統不需再次驗證。</p></div>
-      <div className="auth-flow"><span>01 提名</span><span>02 投票</span><span>03 結果揭曉</span><span>04 安排採購</span></div>
+      <div className="brand portal-auth-brand"><span className="brand-mark">R</span><div><strong>RMBotics Hub</strong><small>員工數位工作台</small></div></div>
+      <div className="auth-copy"><p className="section-kicker">ONE WORKSPACE</p><h1>工作所需，<br />從這裡開始。</h1><p>一個身分，串接教育訓練與日常服務。登入後即可查看個人專屬的系統與待辦。</p></div>
+      <div className="auth-flow" aria-label="平台功能"><span>01 單一登入</span><span>02 教育訓練</span><span>03 日常服務</span><span>04 系統入口</span></div>
     </section>
     <section className="auth-panel">
       <div className="auth-tools"><TextSizeControl /></div>

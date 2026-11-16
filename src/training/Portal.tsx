@@ -17,9 +17,9 @@ export function Portal({
     <div className="training-app">
       <header className="portal-header">
         <a className="portal-brand" href="#/portal">
-          <span>員</span>
+          <span>R</span>
           <strong>
-            員工共用入口<small>學習・協作・日常</small>
+            RMBotics Hub<small>員工數位工作台</small>
           </strong>
         </a>
         <nav>
@@ -53,20 +53,32 @@ export function Portal({
         )
       ) : (
         <main className="portal-home">
-          <p className="eyebrow">EMPLOYEE PORTAL</p>
-          <h1>{context.employee.name}，歡迎回來</h1>
-          <p>選擇要使用的系統。切換系統沿用目前登入身分。</p>
+          <section className="portal-welcome">
+            <div>
+              <p className="eyebrow">WORKSPACE / HOME</p>
+              <h1>{context.employee.name}，開始今天的工作</h1>
+              <p>已使用公司身分安全登入。從下方開啟你的應用程式，不需要再次驗證。</p>
+            </div>
+            <span className="workspace-status"><i /> 系統連線正常</span>
+          </section>
+          <div className="portal-section-heading">
+            <div><span>YOUR APPLICATIONS</span><h2>我的應用程式</h2></div>
+            <small>{context.systems.length} 個可用服務</small>
+          </div>
           <div className="system-grid">
             {context.systems.map((system, i) => (
-              <a className="system-tile" key={system.code} href={system.entry}>
-                <span className="tile-number">0{i + 1}</span>
+              <a className={`system-tile system-${system.code}`} key={system.code} href={system.entry}>
+                <div className="tile-top">
+                  <span className="system-icon" aria-hidden="true">{system.code === "training" ? "學" : "選"}</span>
+                  <span className="tile-number">APP / 0{i + 1}</span>
+                </div>
                 <h2>{system.name}</h2>
                 <p>
                   {system.code === "training"
                     ? "接續課程、完成測驗，查看自己的學習紀錄。"
                     : "參與活動、提名與投票，查看採購及回顧。"}
                 </p>
-                <strong>進入系統 →</strong>
+                <strong className="tile-cta">開啟應用程式 <span>↗</span></strong>
               </a>
             ))}
           </div>
