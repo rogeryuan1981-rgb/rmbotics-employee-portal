@@ -1384,7 +1384,10 @@ function Reports({ data }: { data: AdminData }) {
         ...filter,
         cycle: filter.cycle.trim() === "一次性" ? "once" : filter.cycle.trim(),
       });
-      const localized = r.map((row) => ({ ...row, cycle: row.cycle === "once" ? "一次性" : row.cycle }));
+      const localized = r.map((row) => ({
+        ...row,
+        cycle: row.cycle === "once" ? "一次性" : /^\d{4}$/.test(String(row.cycle || "")) ? `${row.cycle} 年` : row.cycle,
+      }));
       setRows(localized);
       if (exportName) await exportWorkbook(localized, exportName);
       setMessage(`${r.length} 筆資料`);
@@ -1444,9 +1447,9 @@ function Reports({ data }: { data: AdminData }) {
           </label>
         ))}
         <label>
-          義務年度
+          訓練週期／年度
           <input
-            placeholder="例如：2026 或 一次性"
+            placeholder="例如：一次性或 2026"
             value={filter.cycle}
             onChange={(e) =>
               setFilter((f) => ({ ...f, cycle: e.target.value }))
@@ -1474,7 +1477,7 @@ function Reports({ data }: { data: AdminData }) {
             <tr>
               <th>姓名</th>
               <th>課程／要求</th>
-              <th>年度</th>
+              <th>訓練週期／年度</th>
               <th>完成／交卷時間</th>
               <th>成績</th>
             </tr>
