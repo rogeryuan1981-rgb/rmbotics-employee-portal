@@ -85,19 +85,26 @@ export function TrainingAdmin({ context }: { context: Context }) {
     data.employees.find((e) => e.id === id)?.name || id;
   return (
     <main className="training-main">
-      <p className="eyebrow">TRAINING MANAGEMENT</p>
-      <h1>教育訓練管理後台</h1>
-      <p>目前資料依授權部門顯示。個人學習與管理資料分開。</p>
+      <p className="eyebrow">PLATFORM MANAGEMENT</p>
+      <h1>員工平台管理中心</h1>
+      <p>先建立共用人員主檔與應用資格，再到各功能維護課程、活動及個別角色。</p>
+      <section className="platform-sequence" aria-label="平台設定順序">
+        <span><b>1</b> 建立人員</span>
+        <i>→</i>
+        <span><b>2</b> 開通應用</span>
+        <i>→</i>
+        <span><b>3</b> 維護各功能</span>
+      </section>
       <nav className="admin-tabs">
         {(
           [
             ["overview", "管理總覽"],
-            ...(people ? [["people", "員工名冊"]] : []),
+            ...(people ? [["people", "人員主檔與應用"]] : []),
             ["jobs", "職務與職責"],
             ...(admin ? [["materials", "教材庫"], ["courses", "課程與題庫"]] : []),
             ["assign", "開課與指派"],
             ["reports", "報表"],
-            ...(admin ? [["settings", "權限與設定"]] : []),
+            ...(admin ? [["settings", "角色與系統設定"]] : []),
           ] as [Tab, string][]
         ).map(([id, label]) => (
           <button
@@ -486,7 +493,9 @@ function People({
   const patch = (v: Partial<Person>) => setP((p) => ({ ...p, ...v }));
   return (
     <section className="panel">
-      <h2>共用員工名冊</h2>
+      <p className="eyebrow">SHARED PEOPLE DIRECTORY</p>
+      <h2>共用人員主檔</h2>
+      <p>人員只建立一次；目前只在這裡設定教育訓練資格。零食平台沿用既有資格與資料，本次不連動異動。</p>
       <div className="button-row">
         <select
           aria-label="選擇員工"
@@ -563,11 +572,8 @@ function People({
         </label>
       )}
       <fieldset>
-        <legend>各系統使用資格（新增不自動開通）</legend>
-        {(admin
-          ? ["training", "snack-vote", "customer-service"]
-          : ["training"]
-        ).map((s) => (
+        <legend>教育訓練使用資格（新增不自動開通）</legend>
+        {["training"].map((s) => (
           <label className="check" key={s}>
             <input
               type="checkbox"
@@ -583,13 +589,12 @@ function People({
             {
               {
                 training: "教育訓練",
-                "snack-vote": "零食投票",
-                "customer-service": "客服（尚未接入）",
-              }[s]
+              }[s] || data.systems.find((system) => system.code === s)?.name
             }
           </label>
         ))}
       </fieldset>
+      {admin && <p className="boundary-note">零食投票目前維持獨立管理；儲存此頁會保留既有零食資格，不會自動新增或移除。</p>}
       <fieldset>
         <legend>職務與接任日（可兼任）</legend>
         {data.jobs

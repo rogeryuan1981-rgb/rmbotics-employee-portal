@@ -483,6 +483,7 @@
   font-family:"Segoe UI Variable","Noto Sans TC","Microsoft JhengHei UI",sans-serif;
 }
 .training-app a{color:#4459c2}.training-app p{color:#616b82}
+.training-app a.primary-link{color:#fff}
 .training-app :focus-visible{outline-color:#6d7fed}
 .portal-header{
   min-height:78px;padding:14px max(24px,calc((100vw - 1280px)/2));
@@ -530,6 +531,11 @@
   margin:24px 0;padding:24px 28px;border:1px solid #dce2f2;border-left:5px solid var(--hub);
   border-radius:13px;background:linear-gradient(110deg,#fff,#f3f5ff);
 }
+.platform-sequence{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:22px 0 28px;padding:16px 20px;border:1px solid #dfe4f2;border-radius:12px;background:#fff}
+.platform-sequence span{display:flex;align-items:center;gap:9px;color:#49546e;font-weight:700}.platform-sequence b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#4b63e8;color:#fff}.platform-sequence i{color:#9aa4bd;font-style:normal}
+.boundary-note{padding:12px 14px;border-left:3px solid #e89d45;background:#fff8ed;color:#76501f!important;font-size:13px}
+.course-card progress{appearance:none;-webkit-appearance:none;overflow:hidden;border:0;border-radius:999px;background:#e6e9f1}
+.course-card progress::-webkit-progress-bar{background:#e6e9f1}.course-card progress::-webkit-progress-value{background:linear-gradient(90deg,#536bee,#3348b1)}.course-card progress::-moz-progress-bar{background:linear-gradient(90deg,#536bee,#3348b1)}
 .workflow-intro>span{color:#596ccf;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
 .workflow-intro h2{margin:7px 0 6px}.workflow-intro p{margin:0;max-width:760px}
 .material-library-grid{margin-top:18px}.focused-editor{margin-top:24px;border-top:4px solid var(--hub)}

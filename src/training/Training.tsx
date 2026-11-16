@@ -23,7 +23,7 @@ function status(r: Requirement) {
   if (!r.is_open) return "課程未開放、未完成";
   if (Date.now() >= new Date(r.due).getTime()) return "逾期未完成";
   if (Number(r.seconds) >= r.rules.seconds) return "可開始測驗";
-  return Number(r.seconds) > 0 ? "學習中" : "尚未開始";
+  return Number(r.seconds) > 0 ? "學習中" : "尚未開始學習";
 }
 export function Training({ route }: { route: string }) {
   const [data, setData] = useState<{

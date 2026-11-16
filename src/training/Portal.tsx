@@ -12,7 +12,10 @@ export function Portal({
   route: string;
   context: Context;
 }) {
-  const admin = context.grants.some((g) => g.system_code === "training");
+  const peopleAdmin = context.grants.some(
+    (g) =>
+      g.system_code === "training" && (g.role === "admin" || g.role === "hr"),
+  );
   return (
     <div className="training-app">
       <header className="portal-header">
@@ -27,7 +30,7 @@ export function Portal({
           {context.systems.some((s) => s.code === "training") && (
             <a href="#/training">我的學習</a>
           )}
-          {admin && <a href="#/training/admin">訓練後台</a>}
+          {peopleAdmin && <a href="#/portal/admin">平台管理</a>}
           <span>{context.employee.name}</span>
           <button
             onClick={() => void supabase.auth.signOut({ scope: "local" })}
@@ -41,7 +44,13 @@ export function Portal({
           本機測試環境｜僅使用虛構員工；驗證碼與通知存至本機郵件匣，不寄出。
         </aside>
       )}
-      {route.startsWith("#/training") ? (
+      {route.startsWith("#/portal/admin") ? (
+        peopleAdmin ? (
+          <TrainingAdmin context={context} />
+        ) : (
+          <p role="alert">尚未取得平台人員管理權限。</p>
+        )
+      ) : route.startsWith("#/training") ? (
         context.systems.some((s) => s.code === "training") ? (
           route.startsWith("#/training/admin") ? (
             <TrainingAdmin context={context} />
