@@ -1,4 +1,4 @@
-name: Deploy Snack Vote to GitHub Pages
+name: Deploy RMBotics Employee Portal to GitHub Pages
 
 on:
   push:

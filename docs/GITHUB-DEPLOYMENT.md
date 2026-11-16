@@ -1,6 +1,6 @@
 # GitHub Pages 發布與資料庫分階段啟用
 
-網站沿用既有的 GitHub Pages 工作流程，由 main 分支發布，網址為 `https://rogeryuan1981-rgb.github.io/snack-vote/`。使用同一來源與 hash 路由，既有零食連結保留。
+網站使用獨立的 `rmbotics-employee-portal` GitHub Pages 儲存庫，由 main 分支發布，網址為 `https://rogeryuan1981-rgb.github.io/rmbotics-employee-portal/`。平台仍使用同一來源與 hash 路由，零食投票與教育訓練共用登入。
 
 2026-11-16 發布前的唯讀檢查顯示：既有網站可連線，且已有 Supabase 公開連線設定；但新平台的 `portal_rpc` 尚不存在（PGRST202）。因此發布版提供下列過渡處理：
 
