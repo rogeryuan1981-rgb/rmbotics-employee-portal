@@ -94,7 +94,7 @@ create or replace function public.training_material_rpc(action text,p jsonb defa
 language plpgsql security definer set search_path=pg_catalog,public,training as $$
 declare me uuid;mid uuid;m training.materials;next_revision int;normalized text;
 begin
- me=training.me();
+ me=training.actor();
  if not training.allowed(me,'admin') then raise exception '僅管理員可維護教材庫';end if;
  if action='list' then
   return coalesce((select jsonb_agg(to_jsonb(x) order by x.active desc,x.updated_at desc) from training.materials x),'[]'::jsonb);
