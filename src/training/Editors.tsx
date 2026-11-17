@@ -9,7 +9,7 @@ import type {
   Question,
   Material,
 } from "./types";
-import { api, courseSyncApi, materialApi, uploadMaterialPdf, youtubeId } from "./api";
+import { api, courseSyncApi, isUploadedMaterialPdf, materialApi, uploadMaterialPdf, youtubeId } from "./api";
 import { validatePdfUrl } from "./pdf-files";
 export const defaultDeadline: Deadline = {
   mode: "assigned",
@@ -166,7 +166,9 @@ export function MaterialLibrary({materials,done}:{materials:Material[];done:()=>
   const [uploading,setUploading]=useState(false);
   const [saving,setSaving]=useState(false);
   const [fileName,setFileName]=useState("");
-  const edit=(m?:Material)=>{if(uploading||saving)return;const next=m||{id:"",title:"",kind:"text" as const,content:"",active:true};setEditing(next);setDraft({...next});setMessage("");setFileName("");};
+  const [pdfSource,setPdfSource]=useState<"upload"|"external">("upload");
+  const edit=(m?:Material)=>{if(uploading||saving)return;const next=m||{id:"",title:"",kind:"text" as const,content:"",active:true};setEditing(next);setDraft({...next});setPdfSource(next.kind==="pdf"&&!isUploadedMaterialPdf(next.content)?"external":"upload");setMessage("");setFileName("");};
+  const changePdfSource=(source:"upload"|"external")=>{if(source===pdfSource)return;setPdfSource(source);setDraft(current=>({...current,content:""}));setFileName("");setMessage("");};
   async function upload(file:File){
     setUploading(true);setMessage("");
     try{
@@ -193,9 +195,9 @@ export function MaterialLibrary({materials,done}:{materials:Material[];done:()=>
       <div className="button-row"><button disabled={uploading||saving} onClick={()=>edit(m)}>編輯教材</button><button disabled={uploading||saving} onClick={async()=>{await materialApi("set_active",{id:m.id,active:m.active===false});await done();}}>{m.active===false?"重新啟用":"停用"}</button></div>
     </article>)}</div>
     {editing&&<section className="panel focused-editor"><p className="eyebrow">MATERIAL ASSET</p><h2>{draft.id?"編輯教材":"新增教材"}</h2>
-      <div className="form-grid"><label>教材名稱<input disabled={uploading||saving} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label><label>教材類型<select disabled={uploading||saving} value={draft.kind} onChange={e=>{setDraft({...draft,kind:e.target.value as Material["kind"],content:""});setFileName("");setMessage("");}}><option value="text">網頁文字</option><option value="pdf">PDF</option><option value="youtube">YouTube</option></select></label></div>
-      {draft.kind==="pdf"&&<label>上傳 PDF（上限 20 MB）<input type="file" accept=".pdf,application/pdf" disabled={uploading||saving} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void upload(file);}}/>{fileName&&<span>{fileName}</span>}{uploading&&<span>PDF 上傳中…</span>}</label>}
-      <label>{draft.kind==="text"?"教材內容":draft.kind==="pdf"?"PDF 檔案網址（上傳後自動填入，也可填外部 PDF 直連網址）":"YouTube 網址或 11 碼識別碼"}<textarea disabled={uploading||saving} rows={draft.kind==="text"?10:3} value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>
+      <div className="form-grid"><label>教材名稱<input disabled={uploading||saving} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label><label>教材類型<select disabled={uploading||saving} value={draft.kind} onChange={e=>{const kind=e.target.value as Material["kind"];setDraft({...draft,kind,content:""});setPdfSource("upload");setFileName("");setMessage("");}}><option value="text">網頁文字</option><option value="pdf">PDF</option><option value="youtube">YouTube</option></select></label></div>
+      {draft.kind==="pdf"&&<fieldset><legend>PDF 來源</legend><div className="button-row"><button type="button" className={pdfSource==="upload"?"primary":""} disabled={uploading||saving} onClick={()=>changePdfSource("upload")}>上傳檔案</button><button type="button" className={pdfSource==="external"?"primary":""} disabled={uploading||saving} onClick={()=>changePdfSource("external")}>外部網址</button></div>{pdfSource==="upload"?<label>PDF 檔案（上限 20 MB）<input type="file" accept=".pdf,application/pdf" disabled={uploading||saving} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void upload(file);}}/><span>{uploading?"PDF 上傳中…":fileName||isUploadedMaterialPdf(draft.content)?fileName||"已上傳私人 PDF 檔案":"尚未選擇檔案"}</span></label>:<label>外部 PDF HTTPS 網址<input type="url" disabled={uploading||saving} value={draft.content} placeholder="https://example.com/material.pdf" onChange={e=>setDraft({...draft,content:e.target.value})}/></label>}</fieldset>}
+      {draft.kind!=="pdf"&&<label>{draft.kind==="text"?"教材內容":"YouTube 網址或 11 碼識別碼"}<textarea disabled={uploading||saving} rows={draft.kind==="text"?10:3} value={draft.content} onChange={e=>setDraft({...draft,content:e.target.value})}/></label>}
       <div className="button-row"><button disabled={uploading||saving} onClick={()=>setEditing(null)}>取消</button><button className="primary" disabled={uploading||saving||!draft.title.trim()||!draft.content.trim()} onClick={()=>void save()}>{saving?"儲存中…":"儲存教材"}</button></div>{message&&<p role="status">{message}</p>}
     </section>}
   </>;

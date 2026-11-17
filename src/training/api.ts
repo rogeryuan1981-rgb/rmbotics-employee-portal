@@ -27,6 +27,9 @@ export async function uploadMaterialPdf(materialId: string, file: File) {
   if (error) throw new PortalApiError(`PDF 上傳失敗：${error.message}`, "storage");
   return `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/authenticated/${materialBucket}/${objectPath}`;
 }
+export function isUploadedMaterialPdf(content: string) {
+  return Boolean(materialFilePath(content, supabaseUrl));
+}
 export async function readMaterialPdf(content: string) {
   const objectPath = materialFilePath(content, supabaseUrl);
   if (!objectPath) return null;
